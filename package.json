@@ -1,0 +1,37 @@
+{
+  "name": "oauth2-forwarder",
+  "version": "1.0.0",
+  "description": "utilities for forwarding oauth2 interactive flow (e.g. container to host)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rimraf ./dist && webpack",
+    "build-mock-git": "rimraf ./src/__tests__/dist && webpack -c ./webpack.mock-git.js",
+    "zip": "zip -j dist/git-credential-forwarder.zip dist/gcf-*",
+    "test": "jest --watch",
+    "e2e-test": "jest -c ./jest.e2e.config.js",
+    "lint": "eslint .",
+    "fix-formatting": "prettier --write --config ./prettier.config.js ./src/",
+    "check-formatting": "prettier --check --config ./prettier.config.js ./src/"
+  },
+  "author": "Sam Davidoff",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/eslint__js": "^8.42.3",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.15",
+    "eslint": "^9.9.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.4",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.0.1",
+    "webpack": "^5.93.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "pnpm": "^9.14.2"
+  }
+}
