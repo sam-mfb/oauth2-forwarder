@@ -1,13 +1,10 @@
 import { EnvKey } from "../env"
 import { buildOutputWriter } from "../output"
 import { Result } from "../result"
-import { CredentialOperationHandler } from "../types"
+import { buildBrowserHelper } from "./buildBrowserHelper"
 import { buildCredentialForwarder } from "./buildCredentialForwarder"
-import { buildGitCredentialHelper } from "./buildGitCredentialHelper"
 import { parseServerInfo } from "./parseServerInfo"
 
-// NB: debugging needs to occur on stderr when the debuggers are setup
-// because git reads the output on stdout
 const DEBUG = process.env[EnvKey.DEBUG]
 
 const errorOutput = buildOutputWriter({ color: "red", stream: process.stderr })
@@ -26,34 +23,16 @@ if (Result.isFailure(serverInfoResult)) {
 
 const serverInfo = serverInfoResult.value
 
-let credentialForwarder: CredentialOperationHandler
+const credentialForwarder = buildCredentialForwarder({
+  host: serverInfo.host,
+  port: serverInfo.port,
+  debugger: DEBUG
+    ? buildOutputWriter({ color: "cyan", stream: process.stderr })
+    : undefined
+})
 
-switch (serverInfo.type) {
-  case "ipc":
-    credentialForwarder = buildCredentialForwarder({
-      type: "ipc",
-      socketPath: serverInfo.socketPath,
-      debugger: DEBUG
-        ? buildOutputWriter({ color: "cyan", stream: process.stderr })
-        : undefined
-    })
-    break
-  case "tcp":
-    credentialForwarder = buildCredentialForwarder({
-      type: "tcp",
-      host: serverInfo.host,
-      port: serverInfo.port,
-      debugger: DEBUG
-        ? buildOutputWriter({ color: "cyan", stream: process.stderr })
-        : undefined
-    })
-    break
-}
-
-const gitCredentialHelper = buildGitCredentialHelper({
+const browserHelper = buildBrowserHelper({
   streams: {
-    input: process.stdin,
-    output: process.stdout,
     error: process.stderr
   },
   onExit: {
@@ -64,10 +43,15 @@ const gitCredentialHelper = buildGitCredentialHelper({
       process.exit(1)
     }
   },
-  credentialOperationHandler: credentialForwarder,
+  credentialForwarder: credentialForwarder,
+  localhostRedirect: async (port, response) => {
+    console.log(`Will send ${response} to localhost:${port}`)
+  },
   debugger: DEBUG
     ? buildOutputWriter({ color: "green", stream: process.stderr })
     : undefined
 })
 
-gitCredentialHelper(process.argv)
+browserHelper(process.argv).catch(
+  buildOutputWriter({ color: "red", stream: process.stderr })
+)

@@ -1,42 +1,19 @@
-import type { CredentialOperationHandler, ServerType } from "../types"
-import type { GitCredentialInputOutput } from "../git-credential-types"
-
 import http from "http"
-import { gitCredentialIoApi } from "../gitcredential-io"
-import { Result } from "../result"
 
-export function buildCredentialForwarder(
-  deps: {
-    type: ServerType
-    debugger?: (str: string) => void
-  } & (
-    | {
-        type: "ipc"
-        socketPath: string
-      }
-    | {
-        type: "tcp"
-        host: string
-        port: number
-      }
-  )
-): CredentialOperationHandler {
+export function buildCredentialForwarder(deps: {
+  host: string
+  port: number
+  debugger?: (str: string) => void
+}): (url: string) => Promise<unknown> {
   const debug = deps.debugger ? deps.debugger : () => {}
-  return (operation, input) => {
-    return new Promise<GitCredentialInputOutput>((resolve, reject) => {
+  return url => {
+    return new Promise<unknown>((resolve, reject) => {
       const requestOptions: http.RequestOptions = {
         path: "/",
         method: "POST"
       }
-      switch (deps.type) {
-        case "ipc":
-          requestOptions.socketPath = deps.socketPath
-          break
-        case "tcp":
-          requestOptions.port = deps.port
-          requestOptions.host = deps.host
-          break
-      }
+      requestOptions.port = deps.port
+      requestOptions.host = deps.host
       const req = http.request(requestOptions, res => {
         let outputRaw: string = ""
         res.setEncoding("utf8")
@@ -63,13 +40,7 @@ export function buildCredentialForwarder(
             )
           }
           debug(`Final output: "${outputRaw}"`)
-          const outputDeserializedResult =
-            gitCredentialIoApi.deserialize(outputRaw)
-          if (Result.isSuccess(outputDeserializedResult)) {
-            resolve(outputDeserializedResult.value)
-          } else {
-            reject(outputDeserializedResult.error)
-          }
+          resolve(outputRaw)
         })
         res.on("close", () => {
           debug("Response closed")
@@ -78,8 +49,7 @@ export function buildCredentialForwarder(
 
       req.on("error", reject)
       const requestBody = {
-        operation,
-        input
+        url
       }
       const serializedRequestBody = JSON.stringify(requestBody)
       debug(`Sending request body: "${serializedRequestBody}"`)
