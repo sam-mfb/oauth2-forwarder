@@ -36,7 +36,7 @@ if (portEnv) {
   })
 
   const baseDeps = {
-    credentialOperationHandler: credentialQuerier,
+    credentialQuerier: credentialQuerier,
     debugger: DEBUG
       ? buildOutputWriter({ color: "green", stream: process.stdout })
       : undefined

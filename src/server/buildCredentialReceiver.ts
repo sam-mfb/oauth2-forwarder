@@ -1,9 +1,13 @@
 import http from "http"
+import { parseOauth2Url } from "../parseOauth2Url"
+import { Result } from "../result"
+import { Oauth2AuthCodeRequestParams } from "../oauth2-types"
+import { extractPort } from "../extractPort"
 
 export type Deps = {
   host: string
   port: number
-  credentialOperationHandler: () => {}
+  credentialQuerier: (url: string, responsePort: number) => Promise<string>
   debugger?: (str: string) => void
 }
 
@@ -26,44 +30,59 @@ export function buildCredentialReceiver(deps: Deps): () => Promise<void> {
       })
       req.on("end", () => {
         debug("Request ended")
-        const deserializedBody = JSON.parse(rawData.join(""))
+        const deserializedBody: Record<string, string> = JSON.parse(
+          rawData.join("")
+        )
         debug(`Received body: "${rawData.join("")}"`)
 
-        debug("Sending success header")
-        res.writeHead(200)
-        debug(`Sending serialized "${deserializedBody}"`)
-        res.end(`Thank you for sending: "${JSON.stringify(deserializedBody)}"`)
+        let oauthParams: Oauth2AuthCodeRequestParams
+        if ("url" in deserializedBody) {
+          const oauthParamsResponse = parseOauth2Url(deserializedBody.url)
+          if (Result.isFailure(oauthParamsResponse)) {
+            debug(`Error: ${oauthParamsResponse.error.message}`)
+            res.writeHead(400, oauthParamsResponse.error.message)
+            res.end()
+            return
+          }
+          oauthParams = oauthParamsResponse.value
+        } else {
+          const reason = "Received body does not contain a 'url' property"
+          debug(`Error: ${reason}`)
+          res.writeHead(400, reason)
+          res.end()
+          return
+        }
+        const portResult = extractPort(oauthParams.redirect_uri)
+        if (Result.isFailure(portResult)) {
+          debug(`Error: ${portResult.error.message}`)
+          res.writeHead(400, portResult.error.message)
+          res.end()
+          return
+        }
+        const port = portResult.value ?? 80
+        debug(`Using port number: ${port}`)
 
-        // if (!isCredentialRequestBody(deserializedBody)) {
-        //   throw new Error(`Body is not in expected format: ${deserializedBody}`)
-        // }
-        // const credentialRequestBody = deserializedBody
-        // debug("Running credential operation handler...")
-        // deps
-        //   .credentialOperationHandler(
-        //     credentialRequestBody.operation,
-        //     credentialRequestBody.input
-        //   )
-        //   .then(
-        //     output => {
-        //       debug("Credential operation handler completed")
-        //       debug("Sending success header")
-        //       res.writeHead(200)
-        //       debug(`Ending response with output: "${JSON.stringify(output)}"`)
-        //       res.end(gitCredentialIoApi.serialize(output))
-        //     },
-        //     reason => {
-        //       debug(
-        //         `Credential operation handler errored: "${JSON.stringify(
-        //           reason
-        //         )}"`
-        //       )
-        //       debug("Sending error header")
-        //       res.writeHead(500, JSON.stringify(reason))
-        //       debug("Ending response")
-        //       res.end()
-        //     }
-        //   )
+        deps
+          .credentialQuerier(deserializedBody.url, port)
+          .then(successUrl => {
+            debug("Credential request handler completed")
+            debug("Sending success header")
+            res.writeHead(200)
+            const responseBody = { url: successUrl }
+            debug(
+              `Ending response with output: "${JSON.stringify(responseBody)}"`
+            )
+            res.end(JSON.stringify(responseBody))
+          })
+          .catch(error => {
+            debug(
+              `Credential request handler errored: "${JSON.stringify(error)}"`
+            )
+            debug("Sending error header")
+            res.writeHead(500, JSON.stringify(error))
+            debug("Ending response")
+            res.end()
+          })
       })
     })
 
