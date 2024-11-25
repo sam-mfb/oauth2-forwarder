@@ -12,6 +12,7 @@ export function buildCredentialQuerier(deps: {
     return new Promise<string>((resolve, reject) => {
       let response: string = ""
       const server = http.createServer((req, res) => {
+        debug(`Received a ${req.method ?? "undefined"} request`)
         req.on("error", error => {
           debug(`Error: ${JSON.stringify(error)}`)
 
@@ -42,7 +43,7 @@ export function buildCredentialQuerier(deps: {
         })
       })
 
-      debug("Starting temporary redirect server...")
+      debug(`Starting temporary redirect server on port ${responsePort}...`)
       server.listen(responsePort, LOCALHOST)
 
       debug("Opening browser for interactive login...")
