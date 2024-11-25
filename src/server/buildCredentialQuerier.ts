@@ -14,10 +14,6 @@ export function buildCredentialQuerier(deps: {
       const server = http.createServer((req, res) => {
         const rawData: Buffer[] = []
 
-        req.on("open", () => {
-          debug(`Received: "${req.url}"`)
-          response = req.url ?? ""
-        })
         req.on("close", () => {
           debug("Request closed.")
         })
@@ -33,8 +29,12 @@ export function buildCredentialQuerier(deps: {
         req.on("end", () => {
           debug("Request ended")
 
+          debug(`Received: "${req.url}"`)
+          response = req.url ?? ""
+
           debug(`Received body: "${rawData.join("")}"`)
           res.writeHead(200)
+          res.end("Authentication completed. You may close this page now.")
 
           debug("Closing server on success")
           server.close()
