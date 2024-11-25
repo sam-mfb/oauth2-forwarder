@@ -22,11 +22,11 @@ export type Oauth2AuthCodeRequestStandardParams = {
  * formally documented by Microsoft
  */
 export type Oauth2AuthCodeRequestNonStandardParams = {
-  x_client_SKU?: string // Client software development kit information
-  x_client_VER?: string // Version of the client software
-  x_client_OS?: string // Operating system of the client
-  x_client_CPU?: string // CPU architecture of the client
-  client_info?: string // Optional flag to request additional client information
+  "x-client-SKU"?: string // Client software development kit information
+  "x-client-VER"?: string // Version of the client software
+  "x-client-OS"?: string // Operating system of the client
+  "x-client-CPU"?: string // CPU architecture of the client
+  "client_info"?: string // Optional flag to request additional client information
 }
 
 export type Oauth2AuthCodeRequestParams = Oauth2AuthCodeRequestStandardParams &
