@@ -12,31 +12,31 @@ export function buildCredentialQuerier(deps: {
     return new Promise<string>((resolve, reject) => {
       let response: string = ""
       const server = http.createServer((req, res) => {
-        const rawData: Buffer[] = []
+        req.on("error", error => {
+          debug(`Error: ${JSON.stringify(error)}`)
 
-        req.on("close", () => {
-          debug("Request closed.")
-        })
-        req.on("error", err => {
-          debug(`Request received error "${err}"`)
-          reject(err)
-        })
+          debug("Terminating request on error")
+          res.writeHead(500, JSON.stringify(error))
+          debug("Ending response")
+          res.end()
 
-        req.on("data", (chunk: Buffer) => {
-          rawData.push(chunk)
+          debug("Closing temporary redirect server on error")
+          server.close()
+          reject(error)
         })
 
         req.on("end", () => {
           debug("Request ended")
 
-          debug(`Received: "${req.url}"`)
-          response = req.url ?? ""
+          response = "http://" + req.headers.host + req.url
 
-          debug(`Received body: "${rawData.join("")}"`)
+          debug(`Received request url: "${response}"`)
+
+          debug("Successfully terminating request")
           res.writeHead(200)
           res.end("Authentication completed. You may close this page now.")
 
-          debug("Closing server on success")
+          debug("Closing temporary redirect server on success")
           server.close()
           resolve(response)
         })
