@@ -9,9 +9,8 @@ export function buildBrowserHelper(deps: {
     success: () => void
     failure: () => void
   }
-  // TODO: this will need a real type, not unknown
-  credentialForwarder: (url: string) => Promise<unknown>
-  localhostRedirect: (port: number, response: unknown) => Promise<void>
+  credentialForwarder: (url: string) => Promise<{ url: string }>
+  redirect: (url: string) => Promise<void>
   debugger?: (str: string) => void
 }): (argv: string[]) => Promise<void> {
   return async argv => {
@@ -26,13 +25,11 @@ export function buildBrowserHelper(deps: {
       return
     }
     debug(`Received url "${requestUrl}"`)
-    // TODO: actually need to parse the url and get the localhost port it will be listening on
-    const port = 99999
     try {
       const output = await deps.credentialForwarder(requestUrl)
-      debug(`Received credential output ${output}`)
-      debug(`Sending to localhost port ${port}`)
-      await deps.localhostRedirect(port, output)
+      debug(`Received redirect url ${output.url}`)
+      debug(`Redirecting ...`)
+      await deps.redirect(output.url)
       debug(`Exiting on success...`)
       deps.onExit.success()
     } catch (err) {

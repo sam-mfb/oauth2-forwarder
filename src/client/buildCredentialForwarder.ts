@@ -4,10 +4,10 @@ export function buildCredentialForwarder(deps: {
   host: string
   port: number
   debugger?: (str: string) => void
-}): (url: string) => Promise<unknown> {
+}): (url: string) => Promise<{ url: string }> {
   const debug = deps.debugger ? deps.debugger : () => {}
   return url => {
-    return new Promise<unknown>((resolve, reject) => {
+    return new Promise<{ url: string }>((resolve, reject) => {
       const requestOptions: http.RequestOptions = {
         path: "/",
         method: "POST"
@@ -40,7 +40,11 @@ export function buildCredentialForwarder(deps: {
             )
           }
           debug(`Final output: "${outputRaw}"`)
-          resolve(outputRaw)
+          const output = JSON.parse(outputRaw)
+          if (!("url" in output)) {
+            reject("Response did not contain 'url' property")
+          }
+          resolve(output)
         })
         res.on("close", () => {
           debug("Response closed")

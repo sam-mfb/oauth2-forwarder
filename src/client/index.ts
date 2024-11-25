@@ -3,6 +3,7 @@ import { buildOutputWriter } from "../output"
 import { Result } from "../result"
 import { buildBrowserHelper } from "./buildBrowserHelper"
 import { buildCredentialForwarder } from "./buildCredentialForwarder"
+import { buildRedirect } from "./buildRedirect"
 import { parseServerInfo } from "./parseServerInfo"
 
 const DEBUG = process.env[EnvKey.DEBUG]
@@ -31,6 +32,12 @@ const credentialForwarder = buildCredentialForwarder({
     : undefined
 })
 
+const redirect = buildRedirect({
+  debugger: DEBUG
+    ? buildOutputWriter({ color: "yellow", stream: process.stderr })
+    : undefined
+})
+
 const browserHelper = buildBrowserHelper({
   streams: {
     error: process.stderr
@@ -44,9 +51,7 @@ const browserHelper = buildBrowserHelper({
     }
   },
   credentialForwarder: credentialForwarder,
-  localhostRedirect: async (port, response) => {
-    console.log(`Will send ${response} to localhost:${port}`)
-  },
+  redirect: redirect,
   debugger: DEBUG
     ? buildOutputWriter({ color: "green", stream: process.stderr })
     : undefined
