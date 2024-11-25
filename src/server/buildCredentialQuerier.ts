@@ -26,6 +26,14 @@ export function buildCredentialQuerier(deps: {
           reject(error)
         })
 
+        req.on("data", chunk => {
+          debug(`Received data chunk: ${chunk}`)
+        })
+
+        req.on("close", () => {
+          debug("Redirect request closed")
+        })
+
         req.on("end", () => {
           debug("Request ended")
 
