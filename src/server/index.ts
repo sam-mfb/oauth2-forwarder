@@ -1,8 +1,9 @@
 import { EnvKey } from "../env"
 import { buildOutputWriter } from "../output"
-import { buildCredentialQuerier } from "./buildCredentialQuerier"
-import { type Deps, buildCredentialReceiver } from "./buildCredentialReceiver"
+import { buildInteractiveLogin } from "./buildInteractiveLogin"
+import { buildCredentialProxy } from "./buildCredentialProxy"
 import { findAvailablePort } from "./findAvailablePort"
+import open from "open"
 
 const DEBUG = process.env[EnvKey.DEBUG]
 const LOCALHOST = "127.0.0.1"
@@ -28,52 +29,46 @@ if (portEnv) {
   }
 }
 
+const interactiveLogin = buildInteractiveLogin({
+  openBrowser: async url => {
+    await open(url)
+    return
+  },
+  debugger: DEBUG
+    ? buildOutputWriter({ color: "magenta", stream: process.stdout })
+    : undefined
+})
+
 ;(async () => {
-  const credentialQuerier = buildCredentialQuerier({
-    debugger: DEBUG
-      ? buildOutputWriter({ color: "magenta", stream: process.stdout })
-      : undefined
-  })
-
-  const baseDeps = {
-    credentialQuerier: credentialQuerier,
-    debugger: DEBUG
-      ? buildOutputWriter({ color: "green", stream: process.stdout })
-      : undefined
-  }
-
-  let deps: Deps
-
   if (userSpecifiedPort) {
     appOutput(`Attempting to use user specified port ${userSpecifiedPort}`)
   }
   const port = userSpecifiedPort ?? (await findAvailablePort(LOCALHOST))
-  deps = {
-    ...baseDeps,
+
+  const credentialProxy = buildCredentialProxy({
     host: LOCALHOST,
-    port
-  }
-  const credentialReceiver = buildCredentialReceiver(deps)
-  appOutput(`Starting TCP server listening on ${deps.host}:${deps.port}`)
+    port,
+    interactiveLogin: interactiveLogin,
+    debugger: DEBUG
+      ? buildOutputWriter({ color: "green", stream: process.stdout })
+      : undefined
+  })
+
+  appOutput(`Starting TCP server listening on ${LOCALHOST}:${port}`)
   instructions(`Run the following command in your docker container:\n`)
-  configOutput(
-    `    export ${EnvKey.SERVER}="${
-      deps.host === LOCALHOST ? DOCKER_HOST_IP : deps.host
-    }:${deps.port}"\n`
-  )
+  configOutput(`    export ${EnvKey.SERVER}="${DOCKER_HOST_IP}:${port}"\n`)
   instructions(
     `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container. If you are using the default locations, this will work:\n`
   )
   configOutput(`     export BROWSER=~/oauth2-forwarder/browser.sh\n`)
 
   try {
-    await credentialReceiver()
+    await credentialProxy()
+    appOutput("Ctrl+c to stop server.")
   } catch (err) {
     errorOutput(JSON.stringify(err))
     process.exit(1)
   }
-
-  appOutput("Ctrl+c to stop server.")
 })().catch(err => {
   errorOutput(JSON.stringify(err))
   process.exit(1)

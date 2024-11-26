@@ -4,14 +4,12 @@ import { Result } from "../result"
 import { Oauth2AuthCodeRequestParams } from "../oauth2-types"
 import { extractPort } from "../extractPort"
 
-export type Deps = {
+export function buildCredentialProxy(deps: {
   host: string
   port: number
-  credentialQuerier: (url: string, responsePort: number) => Promise<string>
+  interactiveLogin: (url: string, responsePort: number) => Promise<string>
   debugger?: (str: string) => void
-}
-
-export function buildCredentialReceiver(deps: Deps): () => Promise<void> {
+}): () => Promise<void> {
   return async () => {
     const debug = deps.debugger ? deps.debugger : () => {}
 
@@ -64,9 +62,9 @@ export function buildCredentialReceiver(deps: Deps): () => Promise<void> {
         debug(`Using port number: ${port}`)
 
         deps
-          .credentialQuerier(deserializedBody.url, port)
+          .interactiveLogin(deserializedBody.url, port)
           .then(successUrl => {
-            debug("Credential request handler completed")
+            debug("Interactive login completed")
             debug("Sending success header")
             res.writeHead(200)
             const responseBody = { url: successUrl }
@@ -76,9 +74,7 @@ export function buildCredentialReceiver(deps: Deps): () => Promise<void> {
             res.end(JSON.stringify(responseBody))
           })
           .catch(error => {
-            debug(
-              `Credential request handler errored: "${JSON.stringify(error)}"`
-            )
+            debug(`Interactive login errored: "${JSON.stringify(error)}"`)
             debug("Sending error header")
             res.writeHead(500, JSON.stringify(error))
             debug("Ending response")
@@ -87,6 +83,7 @@ export function buildCredentialReceiver(deps: Deps): () => Promise<void> {
       })
     })
 
+    debug("Starting credential proxy...")
     server.listen(deps.port, deps.host)
   }
 }

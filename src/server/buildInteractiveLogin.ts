@@ -1,7 +1,7 @@
 import http from "http"
-import open from "open"
 
-export function buildCredentialQuerier(deps: {
+export function buildInteractiveLogin(deps: {
+  openBrowser: (url: string) => Promise<void>
   debugger?: (str: string) => void
 }): (url: string, responsePort: number) => Promise<string> {
   const LOCALHOST = "127.0.0.1"
@@ -55,7 +55,7 @@ export function buildCredentialQuerier(deps: {
       server.listen(responsePort, LOCALHOST)
 
       debug("Opening browser for interactive login...")
-      open(url)
+      deps.openBrowser(url)
     })
   }
 }
