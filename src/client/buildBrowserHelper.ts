@@ -1,15 +1,9 @@
-import { color } from "../color"
-import { sanitize } from "../sanitize"
-
 export function buildBrowserHelper(deps: {
-  streams: {
-    error: NodeJS.WriteStream
-  }
   onExit: {
     success: () => void
     failure: () => void
   }
-  credentialForwarder: (url: string) => Promise<{ url: string }>
+  credentialForwarder: (url: string) => Promise<{ redirectUrl: string }>
   redirect: (url: string) => Promise<void>
   debugger?: (str: string) => void
 }): (argv: string[]) => Promise<void> {
@@ -20,23 +14,19 @@ export function buildBrowserHelper(deps: {
 
     if (!requestUrl) {
       debug("No url argument present")
-      deps.streams.error.write("No url argument present")
       deps.onExit.failure()
       return
     }
     debug(`Received url "${requestUrl}"`)
     try {
-      const output = await deps.credentialForwarder(requestUrl)
-      debug(`Received redirect url ${output.url}`)
+      const { redirectUrl } = await deps.credentialForwarder(requestUrl)
+      debug(`Received redirect url ${redirectUrl}`)
       debug(`Redirecting ...`)
-      await deps.redirect(output.url)
+      await deps.redirect(redirectUrl)
       debug(`Exiting on success...`)
       deps.onExit.success()
     } catch (err) {
-      debug(`Credential handler error "${err}"`)
-      deps.streams.error.write(
-        color("\n" + sanitize(JSON.stringify(err)) + "\n", "red")
-      )
+      debug(`Browser helper error "${err}"`)
       debug(`Exiting on failure...`)
       deps.onExit.failure()
     }

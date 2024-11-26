@@ -39,9 +39,6 @@ const redirect = buildRedirect({
 })
 
 const browserHelper = buildBrowserHelper({
-  streams: {
-    error: process.stderr
-  },
   onExit: {
     success: function (): void {
       process.exit(0)
