@@ -5,8 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "rimraf ./dist && webpack",
-    "build-mock-git": "rimraf ./src/__tests__/dist && webpack -c ./webpack.mock-git.js",
-    "zip": "zip -j dist/git-credential-forwarder.zip dist/gcf-*",
+    "zip": "zip -j dist/oauth2-forwarder.zip dist/o2f-*",
     "test": "jest --watch",
     "e2e-test": "jest -c ./jest.e2e.config.js",
     "lint": "eslint .",
@@ -32,7 +31,6 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "open": "^10.1.0",
-    "pnpm": "^9.14.2"
+    "open": "^10.1.0"
   }
 }
