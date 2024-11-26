@@ -61,6 +61,10 @@ if (portEnv) {
       deps.host === LOCALHOST ? DOCKER_HOST_IP : deps.host
     }:${deps.port}"\n`
   )
+  instructions(
+    `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container. If you are using the default locations, this will work:\n`
+  )
+  configOutput(`     export BROWSER=~/oauth2-forwarder/browser.sh\n`)
 
   try {
     await credentialReceiver()
