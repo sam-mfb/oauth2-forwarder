@@ -6,11 +6,9 @@ export function buildBrowserHelper(deps: {
   credentialForwarder: (url: string) => Promise<{ redirectUrl: string }>
   redirect: (url: string) => Promise<void>
   debugger?: (str: string) => void
-}): (argv: string[]) => Promise<void> {
-  return async argv => {
+}): (requestUrl: string | undefined) => Promise<void> {
+  return async requestUrl => {
     const debug = deps.debugger ? deps.debugger : () => {}
-
-    const requestUrl = argv[2]
 
     if (!requestUrl) {
       debug("No url argument present")

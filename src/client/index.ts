@@ -54,6 +54,6 @@ const browserHelper = buildBrowserHelper({
     : undefined
 })
 
-browserHelper(process.argv).catch(
-  buildOutputWriter({ color: "red", stream: process.stderr })
-)
+const requestUrl = process.argv[2]
+
+browserHelper(requestUrl).catch(errorOutput)

@@ -9,7 +9,7 @@ export function buildCredentialProxy(deps: {
   port: number
   interactiveLogin: (url: string, responsePort: number) => Promise<string>
   debugger?: (str: string) => void
-}): () => Promise<void> {
+}): () => Promise<{ close: () => void }> {
   return async () => {
     const debug = deps.debugger ? deps.debugger : () => {}
 
@@ -85,5 +85,6 @@ export function buildCredentialProxy(deps: {
 
     debug("Starting credential proxy...")
     server.listen(deps.port, deps.host)
+    return { close: () => server.close() }
   }
 }
