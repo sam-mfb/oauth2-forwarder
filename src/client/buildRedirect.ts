@@ -7,13 +7,18 @@ export function buildRedirect(deps: {
   return async url => {
     debug(`Making GET request to url: "${url}"`)
     return new Promise((resolve, reject) => {
-      http.get(url, res => {
-        if (res.statusCode !== 200) {
-          reject(`Request returned unexpected status: ${res.statusCode}`)
-        } else {
-          resolve()
-        }
-      })
+      http
+        .get(url, res => {
+          //A 302 is the expected response but we will take a 200 as well
+          if (res.statusCode !== 200 && res.statusCode !== 302) {
+            reject(`Request returned unexpected status: ${res.statusCode}`)
+          } else {
+            resolve()
+          }
+        })
+        .on("error", error => {
+          reject(error.message)
+        })
     })
   }
 }

@@ -6,4 +6,6 @@
 # This will ensure requests to open a browser get forwarded
 # through to the proxy
 #
-node ~/oauth2-forwarder/dist/o2f-client.js "$@"
+LOG_FILE="/tmp/oauth2-forwarder.log"
+
+node ~/oauth2-forwarder/dist/o2f-client.js "$@" >> "$LOG_FILE" 2>&1
