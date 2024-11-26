@@ -51,7 +51,6 @@ export function buildCredentialForwarder(deps: {
         })
       })
 
-      req.on("error", reject)
       const requestBody = {
         url
       }
