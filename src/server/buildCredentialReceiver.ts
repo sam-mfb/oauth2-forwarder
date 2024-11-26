@@ -16,6 +16,7 @@ export function buildCredentialReceiver(deps: Deps): () => Promise<void> {
     const debug = deps.debugger ? deps.debugger : () => {}
 
     const server = http.createServer((req, res) => {
+      debug(`Request received at ${req.headers.host}`)
       const rawData: Buffer[] = []
 
       req.on("close", () => {
