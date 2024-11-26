@@ -60,9 +60,11 @@ const interactiveLogin = buildInteractiveLogin({
   instructions(
     `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container. If you are using the default locations, this will work:\n`
   )
-  configOutput(`     export BROWSER=~/oauth2-forwarder/browser.sh\n`)
+  configOutput(`     export BROWSER=~/o2f/browser.sh\n`)
 
   try {
+    // note even though this is async it only awaits the start of the server--execution will proceed
+    // after the server successfully starts
     await credentialProxy()
     appOutput("Ctrl+c to stop server.")
   } catch (err) {

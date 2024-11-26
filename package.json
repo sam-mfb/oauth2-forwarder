@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "rimraf ./dist && webpack",
-    "zip": "zip -j dist/oauth2-forwarder.zip dist/o2f-* ./browser.sh",
+    "zip-release": "./release.sh",
     "test": "jest --watch",
     "e2e-test": "jest -c ./jest.e2e.config.js",
     "lint": "eslint .",
