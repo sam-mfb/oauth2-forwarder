@@ -1,6 +1,6 @@
 {
   "name": "oauth2-forwarder",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "utilities for forwarding oauth2 interactive flow (e.g. container to host)",
   "main": "dist/index.js",
   "scripts": {
