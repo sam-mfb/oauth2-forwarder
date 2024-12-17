@@ -8,4 +8,8 @@
 #
 LOG_FILE="/tmp/oauth2-forwarder.log"
 
-node ~/o2f/o2f-client.js "$@" >> "$LOG_FILE" 2>&1
+# fork and return 0 as some apps (e.g., az cli) expect a zero return 
+# before they will launch their redirect listener
+node ~/o2f/o2f-client.js "$@" >> "$LOG_FILE" 2>&1 &
+
+exit 0

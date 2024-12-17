@@ -13,10 +13,12 @@ export function buildRedirect(deps: {
           if (res.statusCode !== 200 && res.statusCode !== 302) {
             reject(`Request returned unexpected status: ${res.statusCode}`)
           } else {
+            debug(`Received status ${res.statusCode}`)
             resolve()
           }
         })
         .on("error", error => {
+          debug(`Received error "${JSON.stringify(error)}"`)
           reject(error.message)
         })
     })
