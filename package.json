@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "description": "utilities for forwarding oauth2 interactive flow (e.g. container to host)",
   "main": "dist/index.js",
+  "bin": {
+    "o2f-server": "./dist/o2f-server.js",
+    "o2f-client": "./dist/o2f-client.js",
+    "o2f-browser": "./browser-global.sh"
+  },
   "scripts": {
-    "build": "rimraf ./dist && webpack",
+    "build": "rimraf ./dist && webpack && node prepend-shebang.js",
     "zip-release": "./release.sh",
     "test": "jest --watch",
     "e2e-test": "jest -c ./jest.e2e.config.js",
@@ -14,6 +19,25 @@
   },
   "author": "Sam Davidoff",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sam-mfb/oauth2-forwarder.git"
+  },
+  "files": [
+    "dist",
+    "browser.sh",
+    "browser-global.sh"
+  ],
+  "keywords": [
+    "oauth2",
+    "docker",
+    "container",
+    "authentication",
+    "browser"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
     "@types/eslint__js": "^8.42.3",
