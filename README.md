@@ -32,9 +32,39 @@ This utility works by changing the flow above as follows using a client-server p
 
 This helper is written in Typescript and compiles down to two Javascript scripts, one for the server and one for the client.
 
-### Download
+### Option 1: Install via npm (Recommended)
 
-Download the latest release from this repo. The release consists of a filed named `oauth2-forwarder.zip` which contains two Javascript scripts: `o2f-server.js` and `o2f-client.js` plus a helper `browser.sh` script, all in a directory called `o2f`. These can be placed wherever you want, but these instructions assume they are placed in the home directories of the host and container.
+You can install oauth2-forwarder globally via npm:
+
+```bash
+npm install -g oauth2-forwarder
+```
+
+After installation, you'll have the following commands available globally:
+- `o2f-server` - Run on the host machine
+- `o2f-client` - Run on the container
+- `o2f-browser` - Browser script for the container
+
+#### On the host
+
+Run `o2f-server` on the host machine. This will start the server and display the port it's listening on.
+
+#### In the container
+
+1. Set the server info environment variable based on the output from the host:
+   ```bash
+   export OAUTH2_FORWARDER_SERVER="host.docker.internal:PORT"
+   ```
+   where PORT is the port displayed when you ran `o2f-server`.
+
+2. Set the BROWSER environment variable to use the browser script:
+   ```bash
+   export BROWSER=o2f-browser
+   ```
+
+### Option 2: Download Manually
+
+Download the latest release from this repo. The release consists of a file named `oauth2-forwarder.zip` which contains two Javascript scripts: `o2f-server.js` and `o2f-client.js` plus a helper `browser.sh` script, all in a directory called `o2f`. These can be placed wherever you want, but these instructions assume they are placed in the home directories of the host and container.
 
 ### On the host
 
@@ -62,9 +92,25 @@ Notes:
 
 Here's a strategy to make this fairly easy to use with a Docker container built with a Dockerfile.
 
+#### Option 1: Using npm (Recommended)
+
 On the host, set a specific port that you will listen on by configuring the env variable `OAUTH2_FORWARDER_PORT`.
 
-Add these lines in the Dockerfile
+Add these lines in the Dockerfile:
+
+```
+RUN npm install -g oauth2-forwarder
+ENV OAUTH2_FORWARDER_SERVER host.docker.internal:[PORT]
+ENV BROWSER o2f-browser
+```
+
+Replace `[PORT]` with the actual port number (or use Docker's `ARG` command).
+
+#### Option 2: Using the zip release
+
+On the host, set a specific port that you will listen on by configuring the env variable `OAUTH2_FORWARDER_PORT`.
+
+Add these lines in the Dockerfile:
 
 ```
 RUN curl -LO https://github.com/sam-mfb/oauth2-forwarder/releases/download/v[VERSION]/oauth2-forwarder.zip
