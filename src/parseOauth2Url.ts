@@ -27,6 +27,7 @@ export function parseOauth2Url(
   }
 
   // Validate enums
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   if (!["S256", "plain"].includes(params["code_challenge_method"]!)) {
     return Result.failure(
       new Error(
