@@ -55,6 +55,6 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "open": "^10.1.2"
+    "open": "^10.2.0"
   }
 }
