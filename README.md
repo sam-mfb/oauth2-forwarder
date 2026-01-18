@@ -125,6 +125,26 @@ Of course, replace `[VERSION]` and `[PORT]` with the actual version number and p
 
 You can enable debugging on either the server or the client by setting the environmental variable `OAUTH2_FORWARDER_DEBUG` to `true`.
 
+## Passthrough Mode
+
+By default, the server validates incoming URLs and rejects malformed OAuth2 URLs with HTTP 400. For non-standard authentication flows (like device flows) that only need the browser opened without expecting a callback, you can enable passthrough mode.
+
+With passthrough mode enabled:
+- Malformed URLs still return HTTP 400 to the client
+- BUT the URL is also opened in the browser (one-way, no callback expected)
+- The 400 response message notes that the URL was sent to the browser
+
+### Enable via environment variable:
+
+```bash
+OAUTH2_FORWARDER_PASSTHROUGH=true o2f-server
+```
+
+This is useful for:
+- Device code flows that don't use redirect URIs
+- Custom authentication flows that just need browser opening
+- Debugging authentication URLs that fail validation
+
 ## Security
 
 Since this is using all localhost tcp communications the security model is the same using this tool as it is in the non-containerized solution. In other words, in both cases the received auth code is transmitted over plaintext tcp on the localhost only. NB: you could modify this tool to send the client<-->server traffic across the network, but that would not be a good idea.

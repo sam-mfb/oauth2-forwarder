@@ -7,6 +7,9 @@ import { buildInteractiveLogin } from "../server/buildInteractiveLogin"
 import { parseOauth2Url } from "../parseOauth2Url"
 import { Result } from "../result"
 
+// Malformed URL missing required OAuth params (no redirect_uri)
+const MALFORMED_URL = "https://example.com/oauth/authorize?client_id=test123"
+
 // This is an end to end test that builds the client and server and
 // runs them to make sure the request url is passed through and
 // the received redirect url (with code) is returned.
@@ -262,5 +265,104 @@ describe("callback path with OAuth parameters", () => {
     expect(receivedUrl.searchParams.get("error")).toEqual(TEST_ERROR)
     expect(receivedUrl.searchParams.get("error_description")).toEqual(TEST_ERROR_DESCRIPTION)
     expect(receivedUrl.searchParams.get("state")).toEqual(TEST_STATE)
+  })
+})
+
+describe("passthrough mode", () => {
+  const TEST_PORT_PASSTHROUGH = 45996
+
+  it("opens browser with malformed URL and returns 400 with passthrough message", async () => {
+    let openBrowserCalledWith: string | null = null
+
+    const passthroughCredentialProxy = buildCredentialProxy({
+      host: LOCALHOST,
+      port: TEST_PORT_PASSTHROUGH,
+      interactiveLogin: async () => {
+        throw new Error("Should not be called for malformed URL")
+      },
+      openBrowser: async url => {
+        openBrowserCalledWith = url
+      },
+      passthrough: true,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stdout })
+        : undefined
+    })
+
+    const { close } = await passthroughCredentialProxy()
+
+    // Make direct HTTP request to server with malformed URL
+    const response = await new Promise<{ statusCode: number; statusMessage: string }>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: LOCALHOST,
+          port: TEST_PORT_PASSTHROUGH,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        },
+        res => {
+          resolve({ statusCode: res.statusCode ?? 0, statusMessage: res.statusMessage ?? "" })
+        }
+      )
+      req.on("error", reject)
+      req.write(JSON.stringify({ url: MALFORMED_URL }))
+      req.end()
+    })
+
+    close()
+
+    expect(response.statusCode).toEqual(400)
+    expect(response.statusMessage).toContain("passthrough mode")
+    expect(openBrowserCalledWith).toEqual(MALFORMED_URL)
+  })
+
+  it("does not open browser when passthrough is disabled", async () => {
+    const TEST_PORT_NO_PASSTHROUGH = 45995
+    let openBrowserCalled = false
+
+    const noPassthroughCredentialProxy = buildCredentialProxy({
+      host: LOCALHOST,
+      port: TEST_PORT_NO_PASSTHROUGH,
+      interactiveLogin: async () => {
+        throw new Error("Should not be called for malformed URL")
+      },
+      openBrowser: async () => {
+        openBrowserCalled = true
+      },
+      passthrough: false,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stdout })
+        : undefined
+    })
+
+    const { close } = await noPassthroughCredentialProxy()
+
+    // Make direct HTTP request to server with malformed URL
+    const response = await new Promise<{ statusCode: number; statusMessage: string }>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: LOCALHOST,
+          port: TEST_PORT_NO_PASSTHROUGH,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        },
+        res => {
+          resolve({ statusCode: res.statusCode ?? 0, statusMessage: res.statusMessage ?? "" })
+        }
+      )
+      req.on("error", reject)
+      req.write(JSON.stringify({ url: MALFORMED_URL }))
+      req.end()
+    })
+
+    close()
+
+    expect(response.statusCode).toEqual(400)
+    expect(response.statusMessage).not.toContain("passthrough mode")
+    expect(openBrowserCalled).toBe(false)
   })
 })
