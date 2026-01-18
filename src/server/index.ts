@@ -30,11 +30,13 @@ if (portEnv) {
   }
 }
 
+const openBrowser = async (url: string): Promise<void> => {
+  await open(url)
+  return
+}
+
 const interactiveLogin = buildInteractiveLogin({
-  openBrowser: async url => {
-    await open(url)
-    return
-  },
+  openBrowser: openBrowser,
   debugger: DEBUG
     ? buildOutputWriter({ color: "magenta", stream: process.stdout })
     : undefined
@@ -50,9 +52,7 @@ const interactiveLogin = buildInteractiveLogin({
     host: LOCALHOST,
     port,
     interactiveLogin: interactiveLogin,
-    openBrowser: async url => {
-      await open(url)
-    },
+    openBrowser: openBrowser,
     passthrough: PASSTHROUGH,
     debugger: DEBUG
       ? buildOutputWriter({ color: "green", stream: process.stdout })

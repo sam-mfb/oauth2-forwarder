@@ -8,8 +8,8 @@ export function buildCredentialProxy(deps: {
   host: string
   port: number
   interactiveLogin: (url: string, responsePort: number) => Promise<string>
-  openBrowser?: (url: string) => Promise<void>
-  passthrough?: boolean
+  openBrowser: (url: string) => Promise<void>
+  passthrough: boolean
   debugger?: (str: string) => void
 }): () => Promise<{ close: () => void }> {
   return async () => {
@@ -41,7 +41,7 @@ export function buildCredentialProxy(deps: {
           const oauthParamsResponse = parseOauth2Url(deserializedBody.url)
           if (Result.isFailure(oauthParamsResponse)) {
             debug(`Error: ${oauthParamsResponse.error.message}`)
-            if (deps.passthrough && deps.openBrowser) {
+            if (deps.passthrough) {
               debug(`Passthrough mode: opening URL in browser`)
               deps.openBrowser(deserializedBody.url).catch(err => {
                 debug(`Failed to open browser: ${err}`)
@@ -67,7 +67,7 @@ export function buildCredentialProxy(deps: {
         const portResult = extractPort(oauthParams.redirect_uri)
         if (Result.isFailure(portResult)) {
           debug(`Error: ${portResult.error.message}`)
-          if (deps.passthrough && deps.openBrowser) {
+          if (deps.passthrough) {
             debug(`Passthrough mode: opening URL in browser`)
             deps.openBrowser(deserializedBody.url).catch(err => {
               debug(`Failed to open browser: ${err}`)
