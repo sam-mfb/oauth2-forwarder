@@ -1,4 +1,3 @@
-import fs from "fs"
 import { Result } from "../../result"
 import { parseServerInfo } from "../parseServerInfo"
 

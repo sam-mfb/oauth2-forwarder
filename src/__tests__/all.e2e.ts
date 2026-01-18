@@ -32,7 +32,8 @@ const TEST_REQUEST_URL =
 
 // Test URL with callback path (similar to Claude.ai OAuth)
 const TEST_REQUEST_URL_WITH_CALLBACK_PATH =
-  "https://claude.ai/oauth/authorize?client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A38916%2Fcallback&scope=org%3Acreate_api_key%20user%3Aprofile&code_challenge=5i8EjAJjrgQ2-3QqQpmxERhTTmKzcCfNG59mrGgPiyE&code_challenge_method=S256&state=" + TEST_STATE
+  "https://claude.ai/oauth/authorize?client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A38916%2Fcallback&scope=org%3Acreate_api_key%20user%3Aprofile&code_challenge=5i8EjAJjrgQ2-3QqQpmxERhTTmKzcCfNG59mrGgPiyE&code_challenge_method=S256&state=" +
+  TEST_STATE
 
 type CallbackParams = {
   code?: string
@@ -50,7 +51,7 @@ let capturedRedirectUrl: string = ""
  * mock redirect function that captures the url in a global variable
  * for later inspection
  */
-const mockRedirect = async (redirectUrl: string) => {
+const mockRedirect = async (redirectUrl: string): Promise<void> => {
   capturedRedirectUrl = redirectUrl
 }
 
@@ -84,7 +85,9 @@ const client = browserHelper
  * Mock interactive login method that makes a GET request for the redirect uri
  * with configurable callback parameters
  */
-const createMockInteractiveLogin = (callbackParams: CallbackParams) => {
+const createMockInteractiveLogin = (
+  callbackParams: CallbackParams
+): ((requestUrl: string) => Promise<void>) => {
   return async (requestUrl: string): Promise<void> => {
     const paramsResult = parseOauth2Url(requestUrl)
     if (Result.isFailure(paramsResult)) {
@@ -153,7 +156,10 @@ describe("callback path with OAuth parameters", () => {
   it("roundtrips code and state through callback path", async () => {
     const callbackInteractiveLogin = buildInteractiveLogin({
       openBrowser: async url => {
-        await createMockInteractiveLogin({ code: TEST_CODE, state: TEST_STATE })(url)
+        await createMockInteractiveLogin({
+          code: TEST_CODE,
+          state: TEST_STATE
+        })(url)
         return
       },
       debugger: DEBUG
@@ -263,7 +269,9 @@ describe("callback path with OAuth parameters", () => {
     const receivedUrl = new URL(capturedRedirectUrl)
     expect(receivedUrl.pathname).toEqual("/callback")
     expect(receivedUrl.searchParams.get("error")).toEqual(TEST_ERROR)
-    expect(receivedUrl.searchParams.get("error_description")).toEqual(TEST_ERROR_DESCRIPTION)
+    expect(receivedUrl.searchParams.get("error_description")).toEqual(
+      TEST_ERROR_DESCRIPTION
+    )
     expect(receivedUrl.searchParams.get("state")).toEqual(TEST_STATE)
   })
 })
@@ -292,7 +300,10 @@ describe("passthrough mode", () => {
     const { close } = await passthroughCredentialProxy()
 
     // Make direct HTTP request to server with malformed URL
-    const response = await new Promise<{ statusCode: number; statusMessage: string }>((resolve, reject) => {
+    const response = await new Promise<{
+      statusCode: number
+      statusMessage: string
+    }>((resolve, reject) => {
       const req = http.request(
         {
           hostname: LOCALHOST,
@@ -303,7 +314,10 @@ describe("passthrough mode", () => {
           }
         },
         res => {
-          resolve({ statusCode: res.statusCode ?? 0, statusMessage: res.statusMessage ?? "" })
+          resolve({
+            statusCode: res.statusCode ?? 0,
+            statusMessage: res.statusMessage ?? ""
+          })
         }
       )
       req.on("error", reject)
@@ -340,7 +354,10 @@ describe("passthrough mode", () => {
     const { close } = await noPassthroughCredentialProxy()
 
     // Make direct HTTP request to server with malformed URL
-    const response = await new Promise<{ statusCode: number; statusMessage: string }>((resolve, reject) => {
+    const response = await new Promise<{
+      statusCode: number
+      statusMessage: string
+    }>((resolve, reject) => {
       const req = http.request(
         {
           hostname: LOCALHOST,
@@ -351,7 +368,10 @@ describe("passthrough mode", () => {
           }
         },
         res => {
-          resolve({ statusCode: res.statusCode ?? 0, statusMessage: res.statusMessage ?? "" })
+          resolve({
+            statusCode: res.statusCode ?? 0,
+            statusMessage: res.statusMessage ?? ""
+          })
         }
       )
       req.on("error", reject)
