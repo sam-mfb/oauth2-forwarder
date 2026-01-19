@@ -4,6 +4,17 @@ This utility allows forwarding an OAuth2 interactive request that is initiated i
 
 The tool also has a passthrough mode, disabled by default, which allows it to pass non-OAuth2 urls through to the host browser. This can be useful for CLI tools that do device authentication or really any situation where you want to use your hosts browser without copying in pasting. It of course opens up some additional security considerations worth thinking about, which is why it's not the default.
 
+## Table of Contents
+
+- [Background](#background)
+- [Installation and Usage](#installation-and-usage)
+  - [Option 1: Install via npm (Recommended)](#option-1-install-via-npm-recommended)
+  - [Option 2: Download Manually](#option-2-download-manually)
+  - [Using a Dockerfile](#using-a-dockerfile)
+- [Debugging](#debugging)
+- [Passthrough Mode](#passthrough-mode)
+- [Security](#security)
+
 ## Background
 
 Imagine you have a command line tool that performs OAuth2 interactive login. The typical flow of that application is you are running directly on your local machine is this:
@@ -126,6 +137,11 @@ Of course, replace `[VERSION]` and `[PORT]` with the actual version number and p
 ## Debugging
 
 You can enable debugging on either the server or the client by setting the environmental variable `OAUTH2_FORWARDER_DEBUG` to `true`.
+
+### Log Locations
+
+- **Server side**: Debug output is written to the console (stdout).
+- **Client side**: Debug output is saved to `/tmp/oauth2-forwarder.log`.
 
 ## Passthrough Mode
 

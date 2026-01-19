@@ -68,9 +68,12 @@ const interactiveLogin = buildInteractiveLogin({
   instructions(`Run the following command in your docker container:\n`)
   configOutput(`    export ${EnvKey.SERVER}="${DOCKER_HOST_IP}:${port}"\n`)
   instructions(
-    `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container. If you are using the default locations, this will work:\n`
+    `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container.\n`
   )
-  configOutput(`     export BROWSER=~/o2f/browser.sh\n`)
+  instructions(`If you installed via npm (recommended):\n`)
+  configOutput(`    export BROWSER=o2f-browser\n`)
+  instructions(`If you installed manually to the default location:\n`)
+  configOutput(`    export BROWSER=~/o2f/browser.sh\n`)
 
   try {
     // note even though this is async it only awaits the start of the server--execution will proceed
