@@ -6,6 +6,7 @@ import { findAvailablePort } from "./findAvailablePort"
 import open from "open"
 
 const DEBUG = process.env[EnvKey.DEBUG]
+const PASSTHROUGH = process.env[EnvKey.PASSTHROUGH] === "true"
 const LOCALHOST = "127.0.0.1"
 const DOCKER_HOST_IP = "host.docker.internal"
 
@@ -29,11 +30,13 @@ if (portEnv) {
   }
 }
 
+const openBrowser = async (url: string): Promise<void> => {
+  await open(url)
+  return
+}
+
 const interactiveLogin = buildInteractiveLogin({
-  openBrowser: async url => {
-    await open(url)
-    return
-  },
+  openBrowser: openBrowser,
   debugger: DEBUG
     ? buildOutputWriter({ color: "magenta", stream: process.stdout })
     : undefined
@@ -49,12 +52,19 @@ const interactiveLogin = buildInteractiveLogin({
     host: LOCALHOST,
     port,
     interactiveLogin: interactiveLogin,
+    openBrowser: openBrowser,
+    passthrough: PASSTHROUGH,
     debugger: DEBUG
       ? buildOutputWriter({ color: "green", stream: process.stdout })
       : undefined
   })
 
   appOutput(`Starting TCP server listening on ${LOCALHOST}:${port}`)
+  if (PASSTHROUGH) {
+    appOutput(
+      "Passthrough mode enabled: malformed URLs will be opened in browser"
+    )
+  }
   instructions(`Run the following command in your docker container:\n`)
   configOutput(`    export ${EnvKey.SERVER}="${DOCKER_HOST_IP}:${port}"\n`)
   instructions(

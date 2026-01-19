@@ -38,6 +38,7 @@ export function buildCredentialForwarder(deps: {
                 statusMessage ?? "No message"
               }`
             )
+            return
           }
           debug(`Final output: "${outputRaw}"`)
           const outputSerialized = JSON.parse(outputRaw)
@@ -49,6 +50,11 @@ export function buildCredentialForwarder(deps: {
         res.on("close", () => {
           debug("Response closed")
         })
+      })
+
+      req.on("error", err => {
+        debug(`Request error: "${err}"`)
+        reject(err)
       })
 
       const requestBody = {

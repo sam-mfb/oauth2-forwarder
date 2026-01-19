@@ -1,7 +1,7 @@
 import { Result } from "./result"
 
 export function extractPort(uri: string): Result<number | undefined> {
-  const localhostUrlRegex = /^http:\/\/localhost(?::(\d{1,5}))?$/
+  const localhostUrlRegex = /^http:\/\/localhost(?::(\d{1,5}))?(?:\/.*)?$/
   const match = uri.match(localhostUrlRegex)
 
   if (!match) {

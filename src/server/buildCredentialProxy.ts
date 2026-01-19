@@ -8,6 +8,8 @@ export function buildCredentialProxy(deps: {
   host: string
   port: number
   interactiveLogin: (url: string, responsePort: number) => Promise<string>
+  openBrowser: (url: string) => Promise<void>
+  passthrough: boolean
   debugger?: (str: string) => void
 }): () => Promise<{ close: () => void }> {
   return async () => {
@@ -29,17 +31,37 @@ export function buildCredentialProxy(deps: {
       })
       req.on("end", () => {
         debug("Request ended")
-        const deserializedBody: Record<string, string> = JSON.parse(
-          rawData.join("")
-        )
-        debug(`Received body: "${rawData.join("")}"`)
+        const rawBody = rawData.join("")
+        debug(`Received body: "${rawBody}"`)
+
+        let deserializedBody: Record<string, string>
+        try {
+          deserializedBody = JSON.parse(rawBody)
+        } catch {
+          const reason = "Invalid JSON in request body"
+          debug(`Error: ${reason}`)
+          res.writeHead(400, reason)
+          res.end()
+          return
+        }
 
         let oauthParams: Oauth2AuthCodeRequestParams
         if ("url" in deserializedBody) {
           const oauthParamsResponse = parseOauth2Url(deserializedBody.url)
           if (Result.isFailure(oauthParamsResponse)) {
             debug(`Error: ${oauthParamsResponse.error.message}`)
-            res.writeHead(400, oauthParamsResponse.error.message)
+            if (deps.passthrough) {
+              debug(`Passthrough mode: opening URL in browser`)
+              deps.openBrowser(deserializedBody.url).catch(err => {
+                debug(`Failed to open browser: ${err}`)
+              })
+              res.writeHead(
+                400,
+                `${oauthParamsResponse.error.message}; URL opened in browser (passthrough mode)`
+              )
+            } else {
+              res.writeHead(400, oauthParamsResponse.error.message)
+            }
             res.end()
             return
           }
@@ -54,7 +76,18 @@ export function buildCredentialProxy(deps: {
         const portResult = extractPort(oauthParams.redirect_uri)
         if (Result.isFailure(portResult)) {
           debug(`Error: ${portResult.error.message}`)
-          res.writeHead(400, portResult.error.message)
+          if (deps.passthrough) {
+            debug(`Passthrough mode: opening URL in browser`)
+            deps.openBrowser(deserializedBody.url).catch(err => {
+              debug(`Failed to open browser: ${err}`)
+            })
+            res.writeHead(
+              400,
+              `${portResult.error.message}; URL opened in browser (passthrough mode)`
+            )
+          } else {
+            res.writeHead(400, portResult.error.message)
+          }
           res.end()
           return
         }

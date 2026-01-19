@@ -1,19 +1,21 @@
 # oauth2-forwarder
 
-This utility allows forwarding an oauth2 interactive request that is initiated inside a docker container to the browser on the docker host and then forwarding the resulting redirect back into the docker container. The net effect is that a command line tool inside the docker container can perform interactive oauth2 authentication using the browser flow on its host.
+This utility allows forwarding an OAuth2 interactive request that is initiated inside a Docker container to the browser on the docker host and then forwarding the resulting redirect back into the Docker container. The net effect is that a command line tool inside the Docker container can perform interactive OAuth2 authentication using the browser flow on its host.
+
+The tool also has a passthrough mode, disabled by default, which allows it to pass non-OAuth2 urls through to the host browser. This can be useful for CLI tools that do device authentication or really any situation where you want to use your hosts browser without copying in pasting. It of course opens up some additional security considerations worth thinking about, which is why it's not the default.
 
 ## Background
 
-Imagine you have a command line tool that performs oauth2 interactive login. The typical flow of that application is this:
+Imagine you have a command line tool that performs OAuth2 interactive login. The typical flow of that application is you are running directly on your local machine is this:
 
 1. CLI tool sends an interactive login url to the browser and, simultaneously, opens up an http service to listen for the redirect response.
 2. The browser opens the login url and the user performs interactive authentication.
-3. The successful interactive authentication results in a redirect GET request being made with the new authentication code.
+3. The successful interactive authentication results in a redirect GET request being made to localhost with the new authentication code.
 4. The http service setup by the CLI tool receives the redirect requests, extracts the code, and uses it.
 
-This, for example, is exactly how the @azure/msal-node library works if you use the `.acquireTokenInteractive()` method on a public application.
+This, for example, is exactly how the @azure/msal-node library works if you use the `.acquireTokenInteractive()` method on a public application, but many other CLI applications use this as well, for example the azure cli tool, Claude Code etc.
 
-This flow breaks down if you try to use it inside a docker container (at least one without a GUI) because step 2 fails, i.e., there is no way for the CLI to launch the host's browser for interactive login. You could get around this by using a device flow, but (a) that's a little more cumbersome, and (b) often conditional access policies will block that flow if they are checking for device compliance.
+This flow breaks down if you try to use it inside a Docker container (at least one without a GUI) because step 2 fails, i.e., there is no way for the CLI to launch the host's browser for interactive login. You could get around this by using a device flow, but (a) that's a little more cumbersome, and (b) often conditional access policies will block that flow if they are checking for device compliance.
 
 If you ever tried to do this from inside a docker container managed by VS Code, you'd have seen that it magically works. This utility gives you similar functionality without needing to use VS Code.
 
@@ -125,8 +127,31 @@ Of course, replace `[VERSION]` and `[PORT]` with the actual version number and p
 
 You can enable debugging on either the server or the client by setting the environmental variable `OAUTH2_FORWARDER_DEBUG` to `true`.
 
+## Passthrough Mode
+
+By default, the server validates incoming URLs and rejects malformed OAuth2 URLs with HTTP 400. For non-standard authentication flows (like device flows) that only need the browser opened without expecting a callback, you can enable passthrough mode.
+
+With passthrough mode enabled:
+- Malformed URLs still return HTTP 400 to the client
+- BUT the URL is also opened in the browser (one-way, no callback expected)
+- The 400 response message notes that the URL was sent to the browser
+
+### Enable via environment variable:
+
+```bash
+OAUTH2_FORWARDER_PASSTHROUGH=true o2f-server
+```
+
+This is useful for:
+- Device code flows that don't use redirect URIs
+- Custom authentication flows that just need browser opening
+- Debugging authentication URLs that fail validation
+- Any other situation where you want a CLI that respects the BROWSER= env variable to open your hosts browser
+
 ## Security
 
 Since this is using all localhost tcp communications the security model is the same using this tool as it is in the non-containerized solution. In other words, in both cases the received auth code is transmitted over plaintext tcp on the localhost only. NB: you could modify this tool to send the client<-->server traffic across the network, but that would not be a good idea.
+
+Of course in general, and particularly if you use passthrough mode, you should consider the implications of allowing a Docker container to open your host browser. If you are using a container to _prevent_ access to your browser, this would obviously circumvent that. 
 
 NB: If you believe there is a security issue with the app, please reach out to me directly via email, which is just `sam` at my company's domain.
