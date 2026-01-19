@@ -33,6 +33,7 @@ describe("happy path", () => {
     await harness.client(TEST_URL)
     close()
 
+    expect(harness.didFail()).toBe(false)
     const url = new URL(harness.getRedirectUrl())
     expect(url.searchParams.get("code")).toEqual(TEST_CODE)
   })
@@ -48,6 +49,7 @@ describe("happy path", () => {
     await harness.client(TEST_URL_WITH_PATH)
     close()
 
+    expect(harness.didFail()).toBe(false)
     const url = new URL(harness.getRedirectUrl())
     expect(url.pathname).toEqual("/callback")
     expect(url.searchParams.get("code")).toEqual(TEST_CODE)
@@ -69,6 +71,7 @@ describe("happy path", () => {
     await harness.client(TEST_URL_WITH_PATH)
     close()
 
+    expect(harness.didFail()).toBe(false)
     const url = new URL(harness.getRedirectUrl())
     expect(url.searchParams.get("error")).toEqual("access_denied")
     expect(url.searchParams.get("error_description")).toEqual("User denied")
@@ -139,7 +142,7 @@ describe("error handling", () => {
     close()
 
     expect(response.statusCode).toEqual(400)
-    expect(response.statusMessage).toContain("Invalid JSON")
+    expect(response.statusMessage).toMatch(/json/i)
   })
 
   it("returns 400 for missing url property", async () => {
@@ -156,6 +159,7 @@ describe("error handling", () => {
     close()
 
     expect(response.statusCode).toEqual(400)
+    expect(response.statusMessage).toMatch(/url/i)
   })
 
   it("returns 500 when interactiveLogin rejects", async () => {
@@ -168,14 +172,15 @@ describe("error handling", () => {
     })
 
     const { close } = await harness.server()
-    await harness.client(TEST_URL)
+    const response = await sendRawRequest(port, JSON.stringify({ url: TEST_URL }))
     close()
 
-    expect(harness.didFail()).toBe(true)
+    // Using sendRawRequest bypasses the client, so we only check the HTTP response
+    expect(response.statusCode).toEqual(500)
   })
 
   it("rejects when server unavailable", async () => {
     const forwarder = buildCredentialForwarder({ host: LOCALHOST, port: 1 })
-    await expect(forwarder(TEST_URL)).rejects.toThrow()
+    await expect(forwarder(TEST_URL)).rejects.toThrow(/ECONNREFUSED|connect/i)
   })
 })

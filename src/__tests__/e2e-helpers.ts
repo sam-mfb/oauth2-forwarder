@@ -24,7 +24,9 @@ type CallbackParams = {
 /**
  * Creates a mock that simulates browser OAuth callback
  */
-export function createMockBrowserCallback(params: CallbackParams) {
+export function createMockBrowserCallback(
+  params: CallbackParams
+): (requestUrl: string) => Promise<void> {
   return async (requestUrl: string): Promise<void> => {
     const paramsResult = parseOauth2Url(requestUrl)
     if (Result.isFailure(paramsResult)) {
@@ -39,13 +41,22 @@ export function createMockBrowserCallback(params: CallbackParams) {
     return new Promise((resolve, reject) => {
       http
         .get(redirectUrl.toString(), res => {
-          res.statusCode === 200
-            ? resolve()
-            : reject(`Status: ${res.statusCode}`)
+          if (res.statusCode === 200) {
+            resolve()
+          } else {
+            reject(`Status: ${res.statusCode}`)
+          }
         })
         .on("error", e => reject(e.message))
     })
   }
+}
+
+type TestHarness = {
+  server: () => Promise<{ close: () => void }>
+  client: (requestUrl: string | undefined) => Promise<void>
+  getRedirectUrl: () => string
+  didFail: () => boolean
 }
 
 /**
@@ -58,7 +69,7 @@ export function createTestHarness(options: {
   interactiveLogin?: (url: string, port: number) => Promise<string>
   openBrowser?: (url: string) => Promise<void>
   onFailure?: () => void
-}) {
+}): TestHarness {
   let capturedRedirectUrl = ""
 
   const mockCallback = options.callbackParams

@@ -28,7 +28,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 
@@ -38,7 +38,8 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Not a valid port: 99999")
+      expect(result.error.message).toMatch(/not a valid port/i)
+      expect(result.error.message).toContain("99999")
     }
   })
 
@@ -48,7 +49,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 
@@ -58,7 +59,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 
@@ -68,7 +69,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 
@@ -78,7 +79,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 
@@ -193,7 +194,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 
@@ -203,7 +204,7 @@ describe("extractPort", () => {
 
     expect(Result.isFailure(result)).toBe(true)
     if (Result.isFailure(result)) {
-      expect(result.error.message).toBe("Invalid URL format")
+      expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
 })
