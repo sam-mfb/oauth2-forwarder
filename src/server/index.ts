@@ -1,9 +1,15 @@
+import { getVersion } from "../version"
 import { EnvKey } from "../env"
 import { buildOutputWriter } from "../output"
 import { buildInteractiveLogin } from "./buildInteractiveLogin"
 import { buildCredentialProxy } from "./buildCredentialProxy"
 import { findAvailablePort } from "./findAvailablePort"
 import open from "open"
+
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  console.log(`o2f-server v${getVersion()}`)
+  process.exit(0)
+}
 
 const DEBUG = process.env[EnvKey.DEBUG]
 const PASSTHROUGH = process.env[EnvKey.PASSTHROUGH] === "true"
