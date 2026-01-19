@@ -103,7 +103,9 @@ describe(sanitize.name, () => {
     const result = sanitize(fullText)
 
     // Should sanitize the code value
-    expect(result).not.toContain("1.ATYAgKHo9pZYfkipmfpfl9VqxnKXi9aLkv5OtXugyLks")
+    expect(result).not.toContain(
+      "1.ATYAgKHo9pZYfkipmfpfl9VqxnKXi9aLkv5OtXugyLks"
+    )
     // Should preserve other parameters
     expect(result).toContain("client_info=")
     expect(result).toContain("session_state=")

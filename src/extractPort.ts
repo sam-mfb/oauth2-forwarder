@@ -1,8 +1,13 @@
 import { Result } from "./result"
+import { LOOPBACK_PATTERNS } from "./loopback"
 
 export function extractPort(uri: string): Result<number | undefined> {
-  const localhostUrlRegex = /^http:\/\/localhost(?::(\d{1,5}))?(?:\/.*)?$/
-  const match = uri.match(localhostUrlRegex)
+  let match: RegExpMatchArray | null = null
+
+  for (const pattern of LOOPBACK_PATTERNS) {
+    match = uri.match(pattern)
+    if (match) break
+  }
 
   if (!match) {
     return Result.failure(new Error("Invalid URL format"))

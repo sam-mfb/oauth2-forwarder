@@ -207,4 +207,97 @@ describe("extractPort", () => {
       expect(result.error.message).toMatch(/invalid.*url/i)
     }
   })
+
+  // IPv4 loopback (127.0.0.1) tests
+  describe("IPv4 loopback (127.0.0.1)", () => {
+    it("should extract port from 127.0.0.1 URL", () => {
+      const uri = "http://127.0.0.1:3000"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(3000)
+      }
+    })
+
+    it("should return undefined for 127.0.0.1 URL without port", () => {
+      const uri = "http://127.0.0.1"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+
+    it("should extract port from 127.0.0.1 URL with path", () => {
+      const uri = "http://127.0.0.1:8080/callback"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(8080)
+      }
+    })
+
+    it("should extract port from 127.0.0.1 URL with query params", () => {
+      const uri = "http://127.0.0.1:35171/callback?code=abc123&state=xyz"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(35171)
+      }
+    })
+  })
+
+  // IPv6 loopback ([::1]) tests
+  describe("IPv6 loopback ([::1])", () => {
+    it("should extract port from [::1] URL", () => {
+      const uri = "http://[::1]:3000"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(3000)
+      }
+    })
+
+    it("should return undefined for [::1] URL without port", () => {
+      const uri = "http://[::1]"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+
+    it("should extract port from [::1] URL with path", () => {
+      const uri = "http://[::1]:8080/callback"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(8080)
+      }
+    })
+
+    it("should extract port from [::1] URL with query params", () => {
+      const uri = "http://[::1]:35171/callback?code=abc123&state=xyz"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(35171)
+      }
+    })
+
+    it("should fail for IPv6 without brackets", () => {
+      const uri = "http://::1:3000"
+      const result = extractPort(uri)
+
+      expect(Result.isFailure(result)).toBe(true)
+    })
+  })
 })
