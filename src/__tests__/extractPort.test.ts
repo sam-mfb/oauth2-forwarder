@@ -1,4 +1,8 @@
-import { extractPort } from "../extractPort"
+import {
+  extractPort,
+  isLoopbackUrl,
+  convertLoopbackUrl,
+} from "../extractPort"
 import { Result } from "../result"
 
 describe("extractPort", () => {
@@ -206,5 +210,178 @@ describe("extractPort", () => {
     if (Result.isFailure(result)) {
       expect(result.error.message).toMatch(/invalid.*url/i)
     }
+  })
+
+  // IPv4 loopback (127.0.0.1) tests
+  describe("IPv4 loopback (127.0.0.1)", () => {
+    it("should extract port from 127.0.0.1 URL", () => {
+      const uri = "http://127.0.0.1:3000"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(3000)
+      }
+    })
+
+    it("should return undefined for 127.0.0.1 URL without port", () => {
+      const uri = "http://127.0.0.1"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+
+    it("should extract port from 127.0.0.1 URL with path", () => {
+      const uri = "http://127.0.0.1:8080/callback"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(8080)
+      }
+    })
+
+    it("should extract port from 127.0.0.1 URL with query params", () => {
+      const uri = "http://127.0.0.1:35171/callback?code=abc123&state=xyz"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(35171)
+      }
+    })
+  })
+
+  // IPv6 loopback ([::1]) tests
+  describe("IPv6 loopback ([::1])", () => {
+    it("should extract port from [::1] URL", () => {
+      const uri = "http://[::1]:3000"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(3000)
+      }
+    })
+
+    it("should return undefined for [::1] URL without port", () => {
+      const uri = "http://[::1]"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+
+    it("should extract port from [::1] URL with path", () => {
+      const uri = "http://[::1]:8080/callback"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(8080)
+      }
+    })
+
+    it("should extract port from [::1] URL with query params", () => {
+      const uri = "http://[::1]:35171/callback?code=abc123&state=xyz"
+      const result = extractPort(uri)
+
+      expect(Result.isSuccess(result)).toBe(true)
+      if (Result.isSuccess(result)) {
+        expect(result.value).toBe(35171)
+      }
+    })
+
+    it("should fail for IPv6 without brackets", () => {
+      const uri = "http://::1:3000"
+      const result = extractPort(uri)
+
+      expect(Result.isFailure(result)).toBe(true)
+    })
+  })
+})
+
+describe("isLoopbackUrl", () => {
+  it("should return true for localhost URLs", () => {
+    expect(isLoopbackUrl("http://localhost:3000")).toBe(true)
+    expect(isLoopbackUrl("http://localhost")).toBe(true)
+    expect(isLoopbackUrl("http://localhost/callback")).toBe(true)
+  })
+
+  it("should return true for 127.0.0.1 URLs", () => {
+    expect(isLoopbackUrl("http://127.0.0.1:3000")).toBe(true)
+    expect(isLoopbackUrl("http://127.0.0.1")).toBe(true)
+    expect(isLoopbackUrl("http://127.0.0.1/callback")).toBe(true)
+  })
+
+  it("should return true for [::1] URLs", () => {
+    expect(isLoopbackUrl("http://[::1]:3000")).toBe(true)
+    expect(isLoopbackUrl("http://[::1]")).toBe(true)
+    expect(isLoopbackUrl("http://[::1]/callback")).toBe(true)
+  })
+
+  it("should return false for non-loopback URLs", () => {
+    expect(isLoopbackUrl("http://example.com:3000")).toBe(false)
+    expect(isLoopbackUrl("https://localhost:3000")).toBe(false)
+    expect(isLoopbackUrl("http://192.168.1.1:3000")).toBe(false)
+  })
+})
+
+describe("convertLoopbackUrl", () => {
+  describe("converting to IPv4 (127.0.0.1)", () => {
+    it("should convert localhost to 127.0.0.1", () => {
+      expect(convertLoopbackUrl("http://localhost:3000/callback", "127.0.0.1")).toBe(
+        "http://127.0.0.1:3000/callback"
+      )
+    })
+
+    it("should keep 127.0.0.1 as is", () => {
+      expect(convertLoopbackUrl("http://127.0.0.1:3000/callback", "127.0.0.1")).toBe(
+        "http://127.0.0.1:3000/callback"
+      )
+    })
+
+    it("should convert [::1] to 127.0.0.1", () => {
+      expect(convertLoopbackUrl("http://[::1]:3000/callback", "127.0.0.1")).toBe(
+        "http://127.0.0.1:3000/callback"
+      )
+    })
+
+    it("should handle URLs without port", () => {
+      expect(convertLoopbackUrl("http://localhost/callback", "127.0.0.1")).toBe(
+        "http://127.0.0.1/callback"
+      )
+    })
+  })
+
+  describe("converting to IPv6 ([::1])", () => {
+    it("should convert localhost to [::1]", () => {
+      expect(convertLoopbackUrl("http://localhost:3000/callback", "[::1]")).toBe(
+        "http://[::1]:3000/callback"
+      )
+    })
+
+    it("should convert 127.0.0.1 to [::1]", () => {
+      expect(convertLoopbackUrl("http://127.0.0.1:3000/callback", "[::1]")).toBe(
+        "http://[::1]:3000/callback"
+      )
+    })
+
+    it("should keep [::1] as is", () => {
+      expect(convertLoopbackUrl("http://[::1]:3000/callback", "[::1]")).toBe(
+        "http://[::1]:3000/callback"
+      )
+    })
+
+    it("should handle URLs without port", () => {
+      expect(convertLoopbackUrl("http://localhost/callback", "[::1]")).toBe(
+        "http://[::1]/callback"
+      )
+    })
   })
 })
