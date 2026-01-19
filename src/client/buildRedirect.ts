@@ -18,7 +18,9 @@ export function buildRedirect(deps: {
         .get(url, res => {
           // A 302 is the expected response but we will take a 200 as well
           if (res.statusCode !== 200 && res.statusCode !== 302) {
-            reject(new Error(`Request returned unexpected status: ${res.statusCode}`))
+            reject(
+              new Error(`Request returned unexpected status: ${res.statusCode}`)
+            )
           } else {
             debug(`Received status ${res.statusCode}`)
             resolve()

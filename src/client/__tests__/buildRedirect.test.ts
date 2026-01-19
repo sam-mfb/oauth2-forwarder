@@ -16,7 +16,11 @@ describe("buildRedirect", () => {
       })
       server.on("error", reject)
       server.listen(0, host, () => {
-        const address = server!.address()
+        if (!server) {
+          reject(new Error("Server not initialized"))
+          return
+        }
+        const address = server.address()
         if (address && typeof address === "object") {
           resolve(address.port)
         } else {
@@ -80,7 +84,7 @@ describe("buildRedirect", () => {
       serverPort = await createServer("::1", 200)
       const debugMessages: string[] = []
       const redirect = buildRedirect({
-        debugger: msg => debugMessages.push(msg),
+        debugger: msg => debugMessages.push(msg)
       })
 
       // Should fail on IPv4, then succeed on IPv6
@@ -97,9 +101,9 @@ describe("buildRedirect", () => {
       // No server running - both should fail
       const redirect = buildRedirect({})
 
-      await expect(
-        redirect("http://localhost:59999/callback")
-      ).rejects.toThrow(/Connection refused on both IPv4 and IPv6/)
+      await expect(redirect("http://localhost:59999/callback")).rejects.toThrow(
+        /Connection refused on both IPv4 and IPv6/
+      )
     })
 
     it("should handle explicit 127.0.0.1 URLs", async () => {
@@ -126,7 +130,7 @@ describe("buildRedirect", () => {
       serverPort = await createServer("127.0.0.1", 200)
       const debugMessages: string[] = []
       const redirect = buildRedirect({
-        debugger: msg => debugMessages.push(msg),
+        debugger: msg => debugMessages.push(msg)
       })
 
       await redirect(`http://127.0.0.1:${serverPort}/callback`)

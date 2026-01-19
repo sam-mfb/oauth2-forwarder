@@ -172,7 +172,10 @@ describe("error handling", () => {
     })
 
     const { close } = await harness.server()
-    const response = await sendRawRequest(port, JSON.stringify({ url: TEST_URL }))
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({ url: TEST_URL })
+    )
     close()
 
     // Using sendRawRequest bypasses the client, so we only check the HTTP response

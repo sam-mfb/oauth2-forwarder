@@ -1,8 +1,4 @@
-import {
-  extractPort,
-  isLoopbackUrl,
-  convertLoopbackUrl,
-} from "../extractPort"
+import { extractPort, isLoopbackUrl, convertLoopbackUrl } from "../extractPort"
 import { Result } from "../result"
 
 describe("extractPort", () => {
@@ -335,21 +331,21 @@ describe("isLoopbackUrl", () => {
 describe("convertLoopbackUrl", () => {
   describe("converting to IPv4 (127.0.0.1)", () => {
     it("should convert localhost to 127.0.0.1", () => {
-      expect(convertLoopbackUrl("http://localhost:3000/callback", "127.0.0.1")).toBe(
-        "http://127.0.0.1:3000/callback"
-      )
+      expect(
+        convertLoopbackUrl("http://localhost:3000/callback", "127.0.0.1")
+      ).toBe("http://127.0.0.1:3000/callback")
     })
 
     it("should keep 127.0.0.1 as is", () => {
-      expect(convertLoopbackUrl("http://127.0.0.1:3000/callback", "127.0.0.1")).toBe(
-        "http://127.0.0.1:3000/callback"
-      )
+      expect(
+        convertLoopbackUrl("http://127.0.0.1:3000/callback", "127.0.0.1")
+      ).toBe("http://127.0.0.1:3000/callback")
     })
 
     it("should convert [::1] to 127.0.0.1", () => {
-      expect(convertLoopbackUrl("http://[::1]:3000/callback", "127.0.0.1")).toBe(
-        "http://127.0.0.1:3000/callback"
-      )
+      expect(
+        convertLoopbackUrl("http://[::1]:3000/callback", "127.0.0.1")
+      ).toBe("http://127.0.0.1:3000/callback")
     })
 
     it("should handle URLs without port", () => {
@@ -361,15 +357,15 @@ describe("convertLoopbackUrl", () => {
 
   describe("converting to IPv6 ([::1])", () => {
     it("should convert localhost to [::1]", () => {
-      expect(convertLoopbackUrl("http://localhost:3000/callback", "[::1]")).toBe(
-        "http://[::1]:3000/callback"
-      )
+      expect(
+        convertLoopbackUrl("http://localhost:3000/callback", "[::1]")
+      ).toBe("http://[::1]:3000/callback")
     })
 
     it("should convert 127.0.0.1 to [::1]", () => {
-      expect(convertLoopbackUrl("http://127.0.0.1:3000/callback", "[::1]")).toBe(
-        "http://[::1]:3000/callback"
-      )
+      expect(
+        convertLoopbackUrl("http://127.0.0.1:3000/callback", "[::1]")
+      ).toBe("http://[::1]:3000/callback")
     })
 
     it("should keep [::1] as is", () => {

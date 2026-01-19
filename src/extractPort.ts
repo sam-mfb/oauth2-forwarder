@@ -5,7 +5,7 @@ import { Result } from "./result"
 const LOOPBACK_PATTERNS = [
   /^http:\/\/localhost(?::(\d{1,5}))?(?:\/.*)?$/, // localhost
   /^http:\/\/127\.0\.0\.1(?::(\d{1,5}))?(?:\/.*)?$/, // IPv4 loopback
-  /^http:\/\/\[::1\](?::(\d{1,5}))?(?:\/.*)?$/, // IPv6 loopback
+  /^http:\/\/\[::1\](?::(\d{1,5}))?(?:\/.*)?$/ // IPv6 loopback
 ]
 
 export function extractPort(uri: string): Result<number | undefined> {
