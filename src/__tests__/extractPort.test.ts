@@ -1,4 +1,5 @@
-import { extractPort, isLoopbackUrl, convertLoopbackUrl } from "../extractPort"
+import { extractPort } from "../extractPort"
+import { isLoopbackUrl, convertLoopbackUrl } from "../loopback"
 import { Result } from "../result"
 
 describe("extractPort", () => {

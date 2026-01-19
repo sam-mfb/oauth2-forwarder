@@ -1,5 +1,5 @@
 import http from "http"
-import { isLoopbackUrl, convertLoopbackUrl } from "../extractPort"
+import { isLoopbackUrl, convertLoopbackUrl } from "../loopback"
 
 /**
  * Makes an HTTP GET request to the given URL.
