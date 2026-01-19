@@ -37,6 +37,15 @@ export function buildInteractiveLogin(deps: {
         req.on("end", () => {
           debug("Request ended")
 
+          if (!req.headers.host) {
+            const reason = "Missing Host header in redirect request"
+            debug(`Error: ${reason}`)
+            res.writeHead(400, reason)
+            res.end()
+            server.close()
+            reject(new Error(reason))
+            return
+          }
           response = "http://" + req.headers.host + req.url
 
           debug(`Received request url: "${response}"`)

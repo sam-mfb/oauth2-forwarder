@@ -31,10 +31,19 @@ export function buildCredentialProxy(deps: {
       })
       req.on("end", () => {
         debug("Request ended")
-        const deserializedBody: Record<string, string> = JSON.parse(
-          rawData.join("")
-        )
-        debug(`Received body: "${rawData.join("")}"`)
+        const rawBody = rawData.join("")
+        debug(`Received body: "${rawBody}"`)
+
+        let deserializedBody: Record<string, string>
+        try {
+          deserializedBody = JSON.parse(rawBody)
+        } catch {
+          const reason = "Invalid JSON in request body"
+          debug(`Error: ${reason}`)
+          res.writeHead(400, reason)
+          res.end()
+          return
+        }
 
         let oauthParams: Oauth2AuthCodeRequestParams
         if ("url" in deserializedBody) {

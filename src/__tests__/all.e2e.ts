@@ -132,6 +132,8 @@ const credentialProxy = buildCredentialProxy({
   host: LOCALHOST,
   port: TEST_PORT,
   interactiveLogin: interactiveLogin,
+  openBrowser: async () => {},
+  passthrough: false,
   debugger: DEBUG
     ? buildOutputWriter({ color: "green", stream: process.stdout })
     : undefined
@@ -171,6 +173,8 @@ describe("callback path with OAuth parameters", () => {
       host: LOCALHOST,
       port: TEST_PORT_CALLBACK,
       interactiveLogin: callbackInteractiveLogin,
+      openBrowser: async () => {},
+      passthrough: false,
       debugger: DEBUG
         ? buildOutputWriter({ color: "green", stream: process.stdout })
         : undefined
@@ -233,6 +237,8 @@ describe("callback path with OAuth parameters", () => {
       host: LOCALHOST,
       port: TEST_PORT_ERROR,
       interactiveLogin: errorInteractiveLogin,
+      openBrowser: async () => {},
+      passthrough: false,
       debugger: DEBUG
         ? buildOutputWriter({ color: "green", stream: process.stdout })
         : undefined
@@ -279,8 +285,8 @@ describe("callback path with OAuth parameters", () => {
 describe("passthrough mode", () => {
   const TEST_PORT_PASSTHROUGH = 45996
 
-  it("opens browser with malformed URL and returns 400 with passthrough message", async () => {
-    let openBrowserCalledWith: string | null = null
+  it("opens browser with malformed URL when passthrough is enabled", async () => {
+    let passthroughOpenBrowserCalledWith: string | null = null
 
     const passthroughCredentialProxy = buildCredentialProxy({
       host: LOCALHOST,
@@ -289,7 +295,7 @@ describe("passthrough mode", () => {
         throw new Error("Should not be called for malformed URL")
       },
       openBrowser: async url => {
-        openBrowserCalledWith = url
+        passthroughOpenBrowserCalledWith = url
       },
       passthrough: true,
       debugger: DEBUG
@@ -297,44 +303,42 @@ describe("passthrough mode", () => {
         : undefined
     })
 
+    const passthroughCredentialForwarder = buildCredentialForwarder({
+      host: LOCALHOST,
+      port: TEST_PORT_PASSTHROUGH,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "cyan", stream: process.stderr })
+        : undefined
+    })
+
+    let clientFailed = false
+    const passthroughClient = buildBrowserHelper({
+      onExit: {
+        success: function (): void {},
+        failure: function (): void {
+          clientFailed = true
+        }
+      },
+      credentialForwarder: passthroughCredentialForwarder,
+      redirect: mockRedirect,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stderr })
+        : undefined
+    })
+
     const { close } = await passthroughCredentialProxy()
 
-    // Make direct HTTP request to server with malformed URL
-    const response = await new Promise<{
-      statusCode: number
-      statusMessage: string
-    }>((resolve, reject) => {
-      const req = http.request(
-        {
-          hostname: LOCALHOST,
-          port: TEST_PORT_PASSTHROUGH,
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          }
-        },
-        res => {
-          resolve({
-            statusCode: res.statusCode ?? 0,
-            statusMessage: res.statusMessage ?? ""
-          })
-        }
-      )
-      req.on("error", reject)
-      req.write(JSON.stringify({ url: MALFORMED_URL }))
-      req.end()
-    })
+    await passthroughClient(MALFORMED_URL)
 
     close()
 
-    expect(response.statusCode).toEqual(400)
-    expect(response.statusMessage).toContain("passthrough mode")
-    expect(openBrowserCalledWith).toEqual(MALFORMED_URL)
+    expect(clientFailed).toBe(true)
+    expect(passthroughOpenBrowserCalledWith).toEqual(MALFORMED_URL)
   })
 
   it("does not open browser when passthrough is disabled", async () => {
     const TEST_PORT_NO_PASSTHROUGH = 45995
-    let openBrowserCalled = false
+    let noPassthroughOpenBrowserCalled = false
 
     const noPassthroughCredentialProxy = buildCredentialProxy({
       host: LOCALHOST,
@@ -343,7 +347,7 @@ describe("passthrough mode", () => {
         throw new Error("Should not be called for malformed URL")
       },
       openBrowser: async () => {
-        openBrowserCalled = true
+        noPassthroughOpenBrowserCalled = true
       },
       passthrough: false,
       debugger: DEBUG
@@ -351,9 +355,59 @@ describe("passthrough mode", () => {
         : undefined
     })
 
+    const noPassthroughCredentialForwarder = buildCredentialForwarder({
+      host: LOCALHOST,
+      port: TEST_PORT_NO_PASSTHROUGH,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "cyan", stream: process.stderr })
+        : undefined
+    })
+
+    let clientFailed = false
+    const noPassthroughClient = buildBrowserHelper({
+      onExit: {
+        success: function (): void {},
+        failure: function (): void {
+          clientFailed = true
+        }
+      },
+      credentialForwarder: noPassthroughCredentialForwarder,
+      redirect: mockRedirect,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stderr })
+        : undefined
+    })
+
     const { close } = await noPassthroughCredentialProxy()
 
-    // Make direct HTTP request to server with malformed URL
+    await noPassthroughClient(MALFORMED_URL)
+
+    close()
+
+    expect(clientFailed).toBe(true)
+    expect(noPassthroughOpenBrowserCalled).toBe(false)
+  })
+})
+
+describe("error handling", () => {
+  const TEST_PORT_ERROR_HANDLING = 45994
+
+  it("returns 400 for invalid JSON body", async () => {
+    const errorHandlingCredentialProxy = buildCredentialProxy({
+      host: LOCALHOST,
+      port: TEST_PORT_ERROR_HANDLING,
+      interactiveLogin: async () => {
+        throw new Error("Should not be called")
+      },
+      openBrowser: async () => {},
+      passthrough: false,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stdout })
+        : undefined
+    })
+
+    const { close } = await errorHandlingCredentialProxy()
+
     const response = await new Promise<{
       statusCode: number
       statusMessage: string
@@ -361,11 +415,9 @@ describe("passthrough mode", () => {
       const req = http.request(
         {
           hostname: LOCALHOST,
-          port: TEST_PORT_NO_PASSTHROUGH,
+          port: TEST_PORT_ERROR_HANDLING,
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          }
+          headers: { "Content-Type": "application/json" }
         },
         res => {
           resolve({
@@ -375,14 +427,133 @@ describe("passthrough mode", () => {
         }
       )
       req.on("error", reject)
-      req.write(JSON.stringify({ url: MALFORMED_URL }))
+      req.write("this is not valid json{{{")
       req.end()
     })
 
     close()
 
     expect(response.statusCode).toEqual(400)
-    expect(response.statusMessage).not.toContain("passthrough mode")
-    expect(openBrowserCalled).toBe(false)
+    expect(response.statusMessage).toContain("Invalid JSON")
+  })
+
+  it("returns 400 for missing url property", async () => {
+    const TEST_PORT_MISSING_URL = 45993
+
+    const missingUrlCredentialProxy = buildCredentialProxy({
+      host: LOCALHOST,
+      port: TEST_PORT_MISSING_URL,
+      interactiveLogin: async () => {
+        throw new Error("Should not be called")
+      },
+      openBrowser: async () => {},
+      passthrough: false,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stdout })
+        : undefined
+    })
+
+    const { close } = await missingUrlCredentialProxy()
+
+    const response = await new Promise<{
+      statusCode: number
+      statusMessage: string
+    }>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: LOCALHOST,
+          port: TEST_PORT_MISSING_URL,
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        },
+        res => {
+          resolve({
+            statusCode: res.statusCode ?? 0,
+            statusMessage: res.statusMessage ?? ""
+          })
+        }
+      )
+      req.on("error", reject)
+      req.write(JSON.stringify({ notUrl: "some value" }))
+      req.end()
+    })
+
+    close()
+
+    expect(response.statusCode).toEqual(400)
+    expect(response.statusMessage).toContain("url")
+  })
+})
+
+describe("interactive login errors", () => {
+  it("returns 500 when interactiveLogin rejects", async () => {
+    const TEST_PORT_LOGIN_ERROR = 45992
+
+    // Use a direct interactiveLogin mock that rejects immediately
+    // (bypassing buildInteractiveLogin which starts a server that would hang)
+    const rejectingInteractiveLogin = async (): Promise<string> => {
+      throw new Error("Simulated login failure")
+    }
+
+    const loginErrorCredentialProxy = buildCredentialProxy({
+      host: LOCALHOST,
+      port: TEST_PORT_LOGIN_ERROR,
+      interactiveLogin: rejectingInteractiveLogin,
+      openBrowser: async () => {},
+      passthrough: false,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stdout })
+        : undefined
+    })
+
+    const loginErrorCredentialForwarder = buildCredentialForwarder({
+      host: LOCALHOST,
+      port: TEST_PORT_LOGIN_ERROR,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "cyan", stream: process.stderr })
+        : undefined
+    })
+
+    let clientFailed = false
+    const loginErrorClient = buildBrowserHelper({
+      onExit: {
+        success: function (): void {},
+        failure: function (): void {
+          clientFailed = true
+        }
+      },
+      credentialForwarder: loginErrorCredentialForwarder,
+      redirect: mockRedirect,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "green", stream: process.stderr })
+        : undefined
+    })
+
+    const { close } = await loginErrorCredentialProxy()
+
+    await loginErrorClient(TEST_REQUEST_URL)
+
+    close()
+
+    expect(clientFailed).toBe(true)
+  })
+})
+
+describe("credential forwarder errors", () => {
+  it("rejects when server is not available", async () => {
+    const NONEXISTENT_PORT = 45991
+
+    const unavailableCredentialForwarder = buildCredentialForwarder({
+      host: LOCALHOST,
+      port: NONEXISTENT_PORT,
+      debugger: DEBUG
+        ? buildOutputWriter({ color: "cyan", stream: process.stderr })
+        : undefined
+    })
+
+    // Test the forwarder directly to verify it rejects on connection refused
+    await expect(
+      unavailableCredentialForwarder(TEST_REQUEST_URL)
+    ).rejects.toThrow()
   })
 })
