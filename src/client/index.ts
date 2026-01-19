@@ -1,3 +1,4 @@
+import { getVersion } from "../version"
 import { EnvKey } from "../env"
 import { buildOutputWriter } from "../output"
 import { Result } from "../result"
@@ -5,6 +6,11 @@ import { buildBrowserHelper } from "./buildBrowserHelper"
 import { buildCredentialForwarder } from "./buildCredentialForwarder"
 import { buildRedirect } from "./buildRedirect"
 import { parseServerInfo } from "./parseServerInfo"
+
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  console.log(`o2f-client v${getVersion()}`)
+  process.exit(0)
+}
 
 const DEBUG = process.env[EnvKey.DEBUG]
 

@@ -8,6 +8,7 @@
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
     "lib": ["esnext"],
     "module": "CommonJS",
     "moduleResolution": "node",
