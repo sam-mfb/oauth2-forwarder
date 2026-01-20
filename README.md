@@ -13,6 +13,7 @@ The tool also has a passthrough mode, disabled by default, which allows it to pa
   - [Using a Dockerfile](#using-a-dockerfile)
 - [Debugging](#debugging)
 - [Passthrough Mode](#passthrough-mode)
+- [Command Line Options](#command-line-options)
 - [Security](#security)
 
 ## Background
@@ -163,6 +164,20 @@ This is useful for:
 - Custom authentication flows that just need browser opening
 - Debugging authentication URLs that fail validation
 - Any other situation where you want a CLI that respects the BROWSER= env variable to open your hosts browser
+
+## Command Line Options
+
+Both `o2f-server` and `o2f-client` support the following command line options:
+
+| Option | Description |
+|--------|-------------|
+| `--version`, `-v` | Display the version number and exit |
+
+Example:
+```bash
+o2f-server --version
+# Output: o2f-server v1.3.1
+```
 
 ## Security
 
