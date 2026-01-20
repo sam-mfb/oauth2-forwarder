@@ -128,6 +128,27 @@ describe("passthrough mode", () => {
 })
 
 describe("error handling", () => {
+  it("returns 400 for invalid URL syntax", async () => {
+    const port = getNextPort()
+    const harness = createTestHarness({
+      port,
+      interactiveLogin: async () => {
+        throw new Error("Should not call")
+      }
+    })
+
+    const { close } = await harness.server()
+    // Sending a completely invalid URL like "--help" should return 400, not crash the server
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({ url: "--help" })
+    )
+    close()
+
+    expect(response.statusCode).toEqual(400)
+    expect(response.statusMessage).toMatch(/invalid url/i)
+  })
+
   it("returns 400 for invalid JSON", async () => {
     const port = getNextPort()
     const harness = createTestHarness({

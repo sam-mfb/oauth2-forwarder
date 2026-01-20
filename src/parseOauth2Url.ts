@@ -16,7 +16,12 @@ export function parseOauth2Url(
     "code_challenge_method"
   ]
 
-  const urlObj = new URL(url)
+  let urlObj: URL
+  try {
+    urlObj = new URL(url)
+  } catch (error) {
+    return Result.failure(new Error(`Invalid URL: ${url} (${error})`))
+  }
   const params = Object.fromEntries(urlObj.searchParams.entries())
 
   // Validate required parameters
