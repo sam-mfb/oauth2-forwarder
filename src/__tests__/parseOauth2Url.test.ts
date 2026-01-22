@@ -86,7 +86,32 @@ describe("parseOauth2Url", () => {
     }
   })
 
-  it("fails on a url missing code_challenge", () => {
+  it("successfully parses a url without PKCE parameters", () => {
+    const url =
+      "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code"
+
+    const parseResult = parseOauth2Url(url)
+
+    expect(Result.isSuccess(parseResult)).toBe(true)
+    if (Result.isSuccess(parseResult)) {
+      expect("code_challenge" in parseResult.value).toBe(false)
+      expect("code_challenge_method" in parseResult.value).toBe(false)
+    }
+  })
+
+  it("fails when only code_challenge is present without code_challenge_method", () => {
+    const url =
+      "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code&code_challenge=abc"
+
+    const parseResult = parseOauth2Url(url)
+
+    expect(Result.isFailure(parseResult)).toBe(true)
+    if (Result.isFailure(parseResult)) {
+      expect(parseResult.error.message).toContain("PKCE parameters must be used together")
+    }
+  })
+
+  it("fails when only code_challenge_method is present without code_challenge", () => {
     const url =
       "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code&code_challenge_method=S256"
 
@@ -94,7 +119,7 @@ describe("parseOauth2Url", () => {
 
     expect(Result.isFailure(parseResult)).toBe(true)
     if (Result.isFailure(parseResult)) {
-      expect(parseResult.error.message).toContain("code_challenge")
+      expect(parseResult.error.message).toContain("PKCE parameters must be used together")
     }
   })
 

@@ -1,9 +1,9 @@
 /**
- * Type reflecting the parameters of an Oauth2 auth code url request as
- * described here:
+ * Base parameters for an Oauth2 auth code url request (excluding PKCE)
+ * as described here:
  * https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow#request-an-authorization-code
  */
-export type Oauth2AuthCodeRequestStandardParams = {
+type Oauth2AuthCodeRequestBaseParams = {
   client_id: string
   response_type: string
   redirect_uri: string
@@ -13,9 +13,31 @@ export type Oauth2AuthCodeRequestStandardParams = {
   prompt?: "login" | "none" | "consent" | "select_account"
   login_hint?: string
   domain_hint?: string
+}
+
+/**
+ * PKCE parameters - when using PKCE, both code_challenge and code_challenge_method
+ * must be present together
+ */
+type Oauth2PKCEParams = {
   code_challenge: string
   code_challenge_method: "S256" | "plain"
 }
+
+/**
+ * No PKCE parameters - when not using PKCE, neither param should be present
+ */
+type Oauth2NoPKCEParams = {
+  code_challenge?: never
+  code_challenge_method?: never
+}
+
+/**
+ * Standard params using discriminated union for PKCE - ensures either both
+ * PKCE params are present or neither is (making impossible states impossible)
+ */
+export type Oauth2AuthCodeRequestStandardParams = Oauth2AuthCodeRequestBaseParams &
+  (Oauth2PKCEParams | Oauth2NoPKCEParams)
 
 /**
  * Optional params that are seen in msal-node generated requests, even though not
