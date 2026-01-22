@@ -29,6 +29,17 @@ export function parseOauth2Url(
     }
   }
 
+  // Validate PKCE params: both must be present together or neither
+  const hasCodeChallenge = Boolean(params.code_challenge)
+  const hasCodeChallengeMethod = Boolean(params.code_challenge_method)
+  if (hasCodeChallenge !== hasCodeChallengeMethod) {
+    return Result.failure(
+      new Error(
+        "PKCE parameters must be used together: both code_challenge and code_challenge_method are required, or neither"
+      )
+    )
+  }
+
   // Validate enums
   if (
     params.code_challenge_method &&
@@ -61,24 +72,61 @@ export function parseOauth2Url(
     )
   }
 
-  const parsedParams = {
-    "client_id": params.client_id,
-    "response_type": params.response_type,
-    "redirect_uri": params.redirect_uri,
-    "scope": params.scope,
-    "code_challenge": params.code_challenge,
-    "code_challenge_method": params.code_challenge_method,
-    "response_mode": params.response_mode,
-    "state": params.state,
-    "prompt": params.prompt,
-    "login_hint": params.login_hint,
-    "domain_hint": params.domain_hint,
-    "x-client-SKU": params["x-client-SKU"],
-    "x-client-VER": params["x-client-VER"],
-    "x-client-OS": params["x-client-OS"],
-    "x-client-CPU": params["x-client-CPU"],
-    "client_info": params.client_info
-  } as Oauth2AuthCodeRequestParams
+  // Build the final params with proper PKCE typing
+  // Required params are validated above, so we can safely assert their types
+  const parsedParams: Oauth2AuthCodeRequestParams = hasCodeChallenge
+    ? {
+        "client_id": params.client_id as string,
+        "response_type": params.response_type as string,
+        "redirect_uri": params.redirect_uri as string,
+        "scope": params.scope as string,
+        "response_mode": params.response_mode as
+          | "query"
+          | "fragment"
+          | "form_post"
+          | undefined,
+        "state": params.state,
+        "prompt": params.prompt as
+          | "login"
+          | "none"
+          | "consent"
+          | "select_account"
+          | undefined,
+        "login_hint": params.login_hint,
+        "domain_hint": params.domain_hint,
+        "x-client-SKU": params["x-client-SKU"],
+        "x-client-VER": params["x-client-VER"],
+        "x-client-OS": params["x-client-OS"],
+        "x-client-CPU": params["x-client-CPU"],
+        "client_info": params.client_info,
+        "code_challenge": params.code_challenge as string,
+        "code_challenge_method": params.code_challenge_method as "S256" | "plain"
+      }
+    : {
+        "client_id": params.client_id as string,
+        "response_type": params.response_type as string,
+        "redirect_uri": params.redirect_uri as string,
+        "scope": params.scope as string,
+        "response_mode": params.response_mode as
+          | "query"
+          | "fragment"
+          | "form_post"
+          | undefined,
+        "state": params.state,
+        "prompt": params.prompt as
+          | "login"
+          | "none"
+          | "consent"
+          | "select_account"
+          | undefined,
+        "login_hint": params.login_hint,
+        "domain_hint": params.domain_hint,
+        "x-client-SKU": params["x-client-SKU"],
+        "x-client-VER": params["x-client-VER"],
+        "x-client-OS": params["x-client-OS"],
+        "x-client-CPU": params["x-client-CPU"],
+        "client_info": params.client_info
+      }
 
   return Result.success(parsedParams)
 }
