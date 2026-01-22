@@ -13,8 +13,8 @@ export type Oauth2AuthCodeRequestStandardParams = {
   prompt?: "login" | "none" | "consent" | "select_account"
   login_hint?: string
   domain_hint?: string
-  code_challenge: string
-  code_challenge_method: "S256" | "plain"
+  code_challenge?: string
+  code_challenge_method?: "S256" | "plain"
 }
 
 /**

@@ -11,9 +11,7 @@ export function parseOauth2Url(
     "client_id",
     "response_type",
     "redirect_uri",
-    "scope",
-    "code_challenge",
-    "code_challenge_method"
+    "scope"
   ]
 
   let urlObj: URL
@@ -32,8 +30,10 @@ export function parseOauth2Url(
   }
 
   // Validate enums
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  if (!["S256", "plain"].includes(params.code_challenge_method!)) {
+  if (
+    params.code_challenge_method &&
+    !["S256", "plain"].includes(params.code_challenge_method)
+  ) {
     return Result.failure(
       new Error(
         `${params.code_challenge_method} is not valid for "code_challenge_method" property`

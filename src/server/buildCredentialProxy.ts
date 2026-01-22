@@ -66,6 +66,9 @@ export function buildCredentialProxy(deps: {
             return
           }
           oauthParams = oauthParamsResponse.value
+          if (!oauthParams.code_challenge) {
+            debug("OAuth2 request does not include PKCE parameters")
+          }
         } else {
           const reason = "Received body does not contain a 'url' property"
           debug(`Error: ${reason}`)
