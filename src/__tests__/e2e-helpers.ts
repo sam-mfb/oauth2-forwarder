@@ -1,17 +1,21 @@
 import http from "http"
+import crypto from "crypto"
 import { buildBrowserHelper } from "../client/buildBrowserHelper"
 import { buildCredentialForwarder } from "../client/buildCredentialForwarder"
+import { buildRedirect } from "../client/buildRedirect"
 import { buildCredentialProxy } from "../server/buildCredentialProxy"
 import { buildInteractiveLogin } from "../server/buildInteractiveLogin"
 import { parseOauth2Url } from "../parseOauth2Url"
 import { Result } from "../result"
+import { RedirectResult } from "../redirect-types"
 
 export const LOCALHOST = "127.0.0.1"
 
 // Port allocator to avoid conflicts
-let nextPort = 45999
+// Use a random starting point to avoid conflicts between test runs
+let nextPort = 30000 + Math.floor(Math.random() * 10000)
 export function getNextPort(): number {
-  return nextPort--
+  return nextPort++
 }
 
 type CallbackParams = {
@@ -19,6 +23,51 @@ type CallbackParams = {
   state?: string
   error?: string
   error_description?: string
+}
+
+type ContainerResponse =
+  | { type: "status"; statusCode: number; body?: string }
+  | { type: "redirect"; statusCode: 301 | 302; location: string }
+  | {
+      type: "redirect-chain"
+      chain: Array<{ statusCode: 301 | 302; location: string }>
+      final: { statusCode: number; body?: string }
+    }
+
+/**
+ * Creates a mock container server that can be configured to return different responses
+ */
+export function createMockContainer(
+  port: number,
+  response: ContainerResponse
+): Promise<{ close: () => void }> {
+  return new Promise(resolve => {
+    let redirectIndex = 0
+
+    const server = http.createServer((req, res) => {
+      if (response.type === "status") {
+        res.writeHead(response.statusCode)
+        res.end(response.body ?? "")
+      } else if (response.type === "redirect") {
+        res.writeHead(response.statusCode, { Location: response.location })
+        res.end()
+      } else if (response.type === "redirect-chain") {
+        const redirect = response.chain[redirectIndex]
+        if (redirectIndex < response.chain.length && redirect) {
+          redirectIndex++
+          res.writeHead(redirect.statusCode, { Location: redirect.location })
+          res.end()
+        } else {
+          res.writeHead(response.final.statusCode)
+          res.end(response.final.body ?? "")
+        }
+      }
+    })
+
+    server.listen(port, LOCALHOST, () => {
+      resolve({ close: () => server.close() })
+    })
+  })
 }
 
 /**
@@ -39,16 +88,98 @@ export function createMockBrowserCallback(
       }
     })
     return new Promise((resolve, reject) => {
+      const req = http.get(redirectUrl.toString(), () => {
+        // Response received - resolve immediately, don't wait for body.
+        // The browser response is now delayed until after completion,
+        // so we just need to trigger the callback request.
+        resolve()
+      })
+      req.on("error", e => reject(e.message))
+    })
+  }
+}
+
+type BrowserResponse = {
+  statusCode: number
+  headers: http.IncomingHttpHeaders
+  body: string
+}
+
+/**
+ * Creates a mock that simulates browser OAuth callback and captures the response
+ */
+export function createMockBrowserCallbackWithCapture(
+  params: CallbackParams,
+  onResponse: (response: BrowserResponse) => void
+): (requestUrl: string) => Promise<void> {
+  return async (requestUrl: string): Promise<void> => {
+    const paramsResult = parseOauth2Url(requestUrl)
+    if (Result.isFailure(paramsResult)) {
+      throw new Error("Invalid request url")
+    }
+    const redirectUrl = new URL(paramsResult.value.redirect_uri)
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        redirectUrl.searchParams.set(key, value)
+      }
+    })
+    return new Promise((resolve, reject) => {
       http
         .get(redirectUrl.toString(), res => {
-          if (res.statusCode === 200) {
+          const chunks: Buffer[] = []
+          res.on("data", (chunk: Buffer) => chunks.push(chunk))
+          res.on("end", () => {
+            onResponse({
+              statusCode: res.statusCode ?? 0,
+              headers: res.headers,
+              body: Buffer.concat(chunks).toString("utf8")
+            })
             resolve()
-          } else {
-            reject(`Status: ${res.statusCode}`)
-          }
+          })
         })
         .on("error", e => reject(e.message))
     })
+  }
+}
+
+/**
+ * Creates a mock interactiveLogin that doesn't bind to any port.
+ * Used for container redirect tests where the mock container needs
+ * to use the callback port.
+ */
+function createMockInteractiveLogin(
+  callbackParams: CallbackParams
+): (
+  url: string,
+  port: number
+) => Promise<{
+  callbackUrl: string
+  requestId: string
+  complete: (result: RedirectResult) => void
+}> {
+  return async (url: string, port: number) => {
+    const paramsResult = parseOauth2Url(url)
+    if (Result.isFailure(paramsResult)) {
+      throw new Error("Invalid OAuth URL")
+    }
+
+    // Build the callback URL with the params
+    const callbackUrl = new URL(paramsResult.value.redirect_uri)
+    Object.entries(callbackParams).forEach(([key, value]) => {
+      if (value !== undefined) {
+        callbackUrl.searchParams.set(key, value)
+      }
+    })
+
+    const requestId = crypto.randomUUID()
+
+    return {
+      callbackUrl: callbackUrl.toString(),
+      requestId,
+      complete: () => {
+        // Mock complete - no actual browser to respond to
+      }
+    }
   }
 }
 
@@ -56,6 +187,7 @@ type TestHarness = {
   server: () => Promise<{ close: () => void }>
   client: (requestUrl: string | undefined) => Promise<void>
   getRedirectUrl: () => string
+  getRedirectResult: () => RedirectResult | undefined
   didFail: () => boolean
 }
 
@@ -66,23 +198,54 @@ export function createTestHarness(options: {
   port: number
   callbackParams?: CallbackParams
   passthrough?: boolean
-  interactiveLogin?: (url: string, port: number) => Promise<string>
+  interactiveLogin?: (
+    url: string,
+    port: number
+  ) => Promise<{
+    callbackUrl: string
+    requestId: string
+    complete: (result: RedirectResult) => void
+  }>
   openBrowser?: (url: string) => Promise<void>
   onFailure?: () => void
+  // For testing different container responses, provide a containerPort
+  // and the container will be created at that port
+  containerPort?: number
+  containerResponse?: ContainerResponse
 }): TestHarness {
   let capturedRedirectUrl = ""
+  let capturedRedirectResult: RedirectResult | undefined
 
-  const mockCallback = options.callbackParams
-    ? createMockBrowserCallback(options.callbackParams)
-    : undefined
+  // For container redirect tests, use a mock interactiveLogin that doesn't bind to ports
+  // For regular tests, use the real interactiveLogin with mock browser callback
+  let interactiveLogin: (
+    url: string,
+    port: number
+  ) => Promise<{
+    callbackUrl: string
+    requestId: string
+    complete: (result: RedirectResult) => void
+  }>
 
-  const interactiveLogin =
-    options.interactiveLogin ??
-    buildInteractiveLogin({
+  if (options.interactiveLogin) {
+    interactiveLogin = options.interactiveLogin
+  } else if (options.containerPort && options.callbackParams) {
+    // Container tests: use mock interactiveLogin to avoid port conflicts
+    interactiveLogin = createMockInteractiveLogin(options.callbackParams)
+  } else if (options.callbackParams) {
+    // Regular tests: use real interactiveLogin with mock browser callback
+    const mockCallback = createMockBrowserCallback(options.callbackParams)
+    interactiveLogin = buildInteractiveLogin({
       openBrowser: async url => {
-        await mockCallback?.(url)
+        await mockCallback(url)
       }
     })
+  } else {
+    // No callback params: use real interactiveLogin with no-op browser
+    interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {}
+    })
+  }
 
   const server = buildCredentialProxy({
     host: LOCALHOST,
@@ -92,9 +255,19 @@ export function createTestHarness(options: {
     passthrough: options.passthrough ?? false
   })
 
+  // If containerPort is specified, use real redirect against mock container
+  // Otherwise use a mock redirect that just captures the URL
+  const redirect = options.containerPort
+    ? buildRedirect({})
+    : async (url: string): Promise<RedirectResult> => {
+        capturedRedirectUrl = url
+        return { type: "success" }
+      }
+
   const forwarder = buildCredentialForwarder({
     host: LOCALHOST,
-    port: options.port
+    port: options.port,
+    redirect
   })
 
   let failed = false
@@ -106,16 +279,43 @@ export function createTestHarness(options: {
         options.onFailure?.()
       }
     },
-    credentialForwarder: forwarder,
-    redirect: async url => {
-      capturedRedirectUrl = url
+    credentialForwarder: async (url: string) => {
+      const result = await forwarder(url)
+      capturedRedirectResult = result
+      // Also capture the URL from redirect result or callback URL
+      if (result.type === "redirect") {
+        capturedRedirectUrl = result.location
+      }
+      return result
     }
   })
 
+  // Wrap server to also start container if needed
+  const wrappedServer = async () => {
+    let containerClose: (() => void) | undefined
+    if (options.containerPort && options.containerResponse) {
+      const container = await createMockContainer(
+        options.containerPort,
+        options.containerResponse
+      )
+      containerClose = container.close
+    }
+
+    const { close: serverClose } = await server()
+
+    return {
+      close: () => {
+        serverClose()
+        containerClose?.()
+      }
+    }
+  }
+
   return {
-    server,
+    server: wrappedServer,
     client,
     getRedirectUrl: () => capturedRedirectUrl,
+    getRedirectResult: () => capturedRedirectResult,
     didFail: () => failed
   }
 }
@@ -125,20 +325,27 @@ export function createTestHarness(options: {
  */
 export function sendRawRequest(
   port: number,
-  body: string
-): Promise<{ statusCode: number; statusMessage: string }> {
+  body: string,
+  path: string = "/"
+): Promise<{ statusCode: number; statusMessage: string; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
         hostname: LOCALHOST,
         port,
+        path,
         method: "POST",
         headers: { "Content-Type": "application/json" }
       },
       res => {
-        resolve({
-          statusCode: res.statusCode ?? 0,
-          statusMessage: res.statusMessage ?? ""
+        const chunks: Buffer[] = []
+        res.on("data", (chunk: Buffer) => chunks.push(chunk))
+        res.on("end", () => {
+          resolve({
+            statusCode: res.statusCode ?? 0,
+            statusMessage: res.statusMessage ?? "",
+            body: Buffer.concat(chunks).toString("utf8")
+          })
         })
       }
     )

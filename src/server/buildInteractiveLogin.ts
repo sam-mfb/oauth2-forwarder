@@ -1,16 +1,26 @@
 import http from "http"
+import crypto from "crypto"
+import { RedirectResult } from "../redirect-types"
+
+export type InteractiveLoginResult = {
+  callbackUrl: string
+  requestId: string
+  complete: (result: RedirectResult) => void
+}
 
 export function buildInteractiveLogin(deps: {
   openBrowser: (url: string) => Promise<void>
   debugger?: (str: string) => void
-}): (url: string, responsePort: number) => Promise<string> {
+}): (url: string, responsePort: number) => Promise<InteractiveLoginResult> {
   const LOCALHOST = "127.0.0.1"
 
   const debug = deps.debugger ? deps.debugger : () => {}
 
   return async (url, responsePort) => {
-    return new Promise<string>((resolve, reject) => {
-      let response: string = ""
+    return new Promise<InteractiveLoginResult>((resolve, reject) => {
+      const requestId = crypto.randomUUID()
+      debug(`Generated requestId: ${requestId}`)
+
       const server = http.createServer((req, res) => {
         debug(`Received a ${req.method ?? "undefined"} request`)
         req.on("error", error => {
@@ -46,25 +56,55 @@ export function buildInteractiveLogin(deps: {
             reject(new Error(reason))
             return
           }
-          response = "http://" + req.headers.host + req.url
+          const callbackUrl = "http://" + req.headers.host + req.url
 
-          debug(`Received request url: "${response}"`)
+          debug(`Received callback url: "${callbackUrl}"`)
+          debug("Holding browser response pending completion")
 
-          debug("Successfully terminating request")
-          res.writeHead(200)
-          res.end("Authentication completed. You may close this page now.")
-
-          debug("Closing temporary redirect server on success")
+          // Close the listening socket immediately to free the port
+          // The existing connection (browser response) stays open
+          debug("Closing listening socket (keeping response connection open)")
           server.close()
-          resolve(response)
+
+          // Create completion function that will respond to browser
+          const complete = (result: RedirectResult) => {
+            debug(`Completing request ${requestId} with result type: ${result.type}`)
+
+            switch (result.type) {
+              case "redirect":
+                debug(`Redirecting browser to: ${result.location}`)
+                res.writeHead(302, { Location: result.location })
+                res.end()
+                break
+
+              case "success":
+                debug("Sending success response to browser")
+                res.writeHead(200, { "Content-Type": "text/html" })
+                if (result.body) {
+                  res.end(result.body)
+                } else {
+                  res.end("Authentication completed. You may close this page now.")
+                }
+                break
+
+              case "error":
+                debug(`Sending error response to browser: ${result.message}`)
+                res.writeHead(500, { "Content-Type": "text/html" })
+                res.end(`Authentication failed: ${result.message}`)
+                break
+            }
+          }
+
+          resolve({ callbackUrl, requestId, complete })
         })
       })
 
       debug(`Starting temporary redirect server on port ${responsePort}...`)
-      server.listen(responsePort, LOCALHOST)
-
-      debug("Opening browser for interactive login...")
-      deps.openBrowser(url)
+      server.listen(responsePort, LOCALHOST, () => {
+        debug("Temporary redirect server is listening")
+        debug("Opening browser for interactive login...")
+        deps.openBrowser(url)
+      })
     })
   }
 }

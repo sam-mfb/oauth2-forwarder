@@ -1,10 +1,11 @@
+import { RedirectResult } from "../redirect-types"
+
 export function buildBrowserHelper(deps: {
   onExit: {
     success: () => void
     failure: () => void
   }
-  credentialForwarder: (url: string) => Promise<{ redirectUrl: string }>
-  redirect: (url: string) => Promise<void>
+  credentialForwarder: (url: string) => Promise<RedirectResult>
   debugger?: (str: string) => void
 }): (requestUrl: string | undefined) => Promise<void> {
   return async requestUrl => {
@@ -17,10 +18,15 @@ export function buildBrowserHelper(deps: {
     }
     debug(`Received url "${requestUrl}"`)
     try {
-      const { redirectUrl } = await deps.credentialForwarder(requestUrl)
-      debug(`Received redirect url ${redirectUrl}`)
-      debug(`Redirecting ...`)
-      await deps.redirect(redirectUrl)
+      const result = await deps.credentialForwarder(requestUrl)
+      debug(`Credential forwarding completed with result type: ${result.type}`)
+
+      if (result.type === "error") {
+        debug(`Error during credential forwarding: ${result.message}`)
+        deps.onExit.failure()
+        return
+      }
+
       debug(`Exiting on success...`)
       deps.onExit.success()
     } catch (err) {
