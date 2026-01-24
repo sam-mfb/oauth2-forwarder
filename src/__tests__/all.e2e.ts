@@ -6,6 +6,8 @@ import {
   LOCALHOST
 } from "./e2e-helpers"
 import { buildCredentialForwarder } from "../client/buildCredentialForwarder"
+import { buildCredentialProxy } from "../server/buildCredentialProxy"
+import { buildInteractiveLogin } from "../server/buildInteractiveLogin"
 import { buildRedirect } from "../client/buildRedirect"
 
 const TEST_CODE = "3khsh8dhHH92jd8alcde80"
@@ -478,5 +480,125 @@ describe("/complete endpoint", () => {
 
     expect(response.statusCode).toEqual(404)
     expect(response.statusMessage).toMatch(/pending|request/i)
+  })
+})
+
+describe("timeout handling", () => {
+  it("interactive login server times out if user does not complete OAuth flow", async () => {
+    const port = getNextPort()
+    const SHORT_TIMEOUT_MS = 100 // Very short timeout for testing
+
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        // Simulate user not completing the OAuth flow - do nothing
+      },
+      loginTimeoutMs: SHORT_TIMEOUT_MS
+    })
+
+    // This should reject with a timeout error
+    await expect(interactiveLogin("https://example.com/oauth?client_id=test&redirect_uri=http://localhost:12345&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256", port)).rejects.toThrow(/timeout/i)
+  })
+
+  it("pending request expires after TTL and returns 404 on late completion", async () => {
+    const port = getNextPort()
+    const SHORT_TTL_MS = 100 // Very short TTL for testing
+    let capturedRequestId: string | null = null
+
+    // Use a mock interactiveLogin that completes immediately without waiting for browser
+    const mockInteractiveLogin = async (_url: string, _responsePort: number) => {
+      const requestId = `test-${Date.now()}`
+      capturedRequestId = requestId
+      return {
+        callbackUrl: `http://localhost:${_responsePort}?code=test`,
+        requestId,
+        complete: () => {}
+      }
+    }
+
+    const server = buildCredentialProxy({
+      host: LOCALHOST,
+      port,
+      interactiveLogin: mockInteractiveLogin,
+      openBrowser: async () => {},
+      passthrough: false,
+      pendingRequestTtlMs: SHORT_TTL_MS
+    })
+
+    const { close } = await server()
+
+    // Send OAuth request to create a pending request
+    const redirectPort = getNextPort()
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({ url: `https://example.com/oauth?client_id=test&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256` })
+    )
+    expect(response.statusCode).toEqual(200)
+    expect(capturedRequestId).not.toBeNull()
+
+    // Wait for TTL to expire
+    await new Promise(resolve => setTimeout(resolve, SHORT_TTL_MS + 50))
+
+    // Now try to complete - should return 404 because request expired
+    const completeResponse = await sendRawRequest(
+      port,
+      JSON.stringify({
+        requestId: capturedRequestId,
+        result: { type: "success" }
+      }),
+      "/complete"
+    )
+
+    expect(completeResponse.statusCode).toEqual(404)
+    close()
+  })
+
+  it("pending request completes successfully before TTL expires", async () => {
+    const port = getNextPort()
+    const LONG_TTL_MS = 60000 // Long TTL to ensure it doesn't expire
+    let capturedRequestId: string | null = null
+
+    // Use a mock interactiveLogin that completes immediately without waiting for browser
+    const mockInteractiveLogin = async (_url: string, _responsePort: number) => {
+      const requestId = `test-${Date.now()}`
+      capturedRequestId = requestId
+      return {
+        callbackUrl: `http://localhost:${_responsePort}?code=test`,
+        requestId,
+        complete: () => {}
+      }
+    }
+
+    const server = buildCredentialProxy({
+      host: LOCALHOST,
+      port,
+      interactiveLogin: mockInteractiveLogin,
+      openBrowser: async () => {},
+      passthrough: false,
+      pendingRequestTtlMs: LONG_TTL_MS
+    })
+
+    const { close } = await server()
+
+    // Send OAuth request to create a pending request
+    const redirectPort = getNextPort()
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({ url: `https://example.com/oauth?client_id=test&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256` })
+    )
+    expect(response.statusCode).toEqual(200)
+    expect(capturedRequestId).not.toBeNull()
+
+    // Complete immediately - should succeed
+    const completeResponse = await sendRawRequest(
+      port,
+      JSON.stringify({
+        requestId: capturedRequestId,
+        result: { type: "success" }
+      }),
+      "/complete"
+    )
+
+    expect(completeResponse.statusCode).toEqual(200)
+    close()
   })
 })

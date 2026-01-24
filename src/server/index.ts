@@ -16,6 +16,16 @@ const PASSTHROUGH = process.env[EnvKey.PASSTHROUGH] === "true"
 const LOCALHOST = "127.0.0.1"
 const DOCKER_HOST_IP = "host.docker.internal"
 
+// Parse login timeout from env (in seconds), default handled by buildInteractiveLogin
+let loginTimeoutMs: number | undefined
+const loginTimeoutEnv = process.env[EnvKey.LOGIN_TIMEOUT]
+if (loginTimeoutEnv) {
+  const parsedTimeout = parseInt(loginTimeoutEnv)
+  if (!isNaN(parsedTimeout) && parsedTimeout > 0) {
+    loginTimeoutMs = parsedTimeout * 1000 // Convert seconds to milliseconds
+  }
+}
+
 const appOutput = buildOutputWriter({ color: "cyan", stream: process.stdout })
 const instructions = buildOutputWriter({
   color: "yellow",
@@ -45,7 +55,8 @@ const interactiveLogin = buildInteractiveLogin({
   openBrowser: openBrowser,
   debugger: DEBUG
     ? buildOutputWriter({ color: "magenta", stream: process.stdout })
-    : undefined
+    : undefined,
+  loginTimeoutMs
 })
 
 ;(async () => {
@@ -62,7 +73,8 @@ const interactiveLogin = buildInteractiveLogin({
     passthrough: PASSTHROUGH,
     debugger: DEBUG
       ? buildOutputWriter({ color: "green", stream: process.stdout })
-      : undefined
+      : undefined,
+    pendingRequestTtlMs: loginTimeoutMs
   })
 
   appOutput(`Starting TCP server listening on ${LOCALHOST}:${port}`)
