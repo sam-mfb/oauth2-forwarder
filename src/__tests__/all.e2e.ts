@@ -11,6 +11,17 @@ import {
   buildInteractiveLogin,
   InteractiveLoginResult
 } from "../server/buildInteractiveLogin"
+import { WhitelistConfig } from "../server/whitelist"
+
+// Disabled whitelist for e2e tests
+const DISABLED_WHITELIST: WhitelistConfig = {
+  enabled: false,
+  domains: new Set(),
+  configPath: ""
+}
+
+// No-op logger for e2e tests
+const NO_OP_LOGGER = (_str: string): void => {}
 import { buildRedirect } from "../client/buildRedirect"
 
 const TEST_CODE = "3khsh8dhHH92jd8alcde80"
@@ -333,6 +344,143 @@ describe("passthrough mode", () => {
   })
 })
 
+describe("URL whitelist", () => {
+  const WHITELISTED_DOMAIN = "login.example.com"
+  const NON_WHITELISTED_DOMAIN = "evil.example.com"
+
+  const ENABLED_WHITELIST: WhitelistConfig = {
+    enabled: true,
+    domains: new Set([WHITELISTED_DOMAIN]),
+    configPath: ""
+  }
+
+  it("allows OAuth2 URLs with whitelisted domain", async () => {
+    const serverPort = getNextPort()
+    const redirectPort = getNextPort()
+
+    const harness = createTestHarness({
+      port: serverPort,
+      callbackParams: { code: TEST_CODE },
+      whitelist: ENABLED_WHITELIST
+    })
+
+    const { close } = await harness.server()
+    // createTestUrl uses login.example.com which is whitelisted
+    await harness.client(createTestUrl(redirectPort))
+    close()
+
+    expect(harness.didFail()).toBe(false)
+    expect(harness.getRedirectUrl()).toContain(`code=${TEST_CODE}`)
+  })
+
+  it("rejects OAuth2 URLs with non-whitelisted domain", async () => {
+    const serverPort = getNextPort()
+    const redirectPort = getNextPort()
+
+    const harness = createTestHarness({
+      port: serverPort,
+      whitelist: ENABLED_WHITELIST,
+      interactiveLogin: async () => {
+        throw new Error("Should not call interactiveLogin for rejected domain")
+      }
+    })
+
+    const { close } = await harness.server()
+
+    // Create URL with non-whitelisted domain
+    const nonWhitelistedUrl = `https://${NON_WHITELISTED_DOMAIN}/oauth?client_id=xxx&redirect_uri=${encodeURIComponent(`http://localhost:${redirectPort}`)}&response_type=code&scope=openid&code_challenge=${TEST_CODE_CHALLENGE}&code_challenge_method=S256`
+
+    const response = await sendRawRequest(
+      serverPort,
+      JSON.stringify({ url: nonWhitelistedUrl })
+    )
+    close()
+
+    expect(response.statusCode).toEqual(403)
+    expect(response.statusMessage).toContain(NON_WHITELISTED_DOMAIN)
+    expect(response.statusMessage).toContain("not in the whitelist")
+  })
+
+  it("allows passthrough URLs with whitelisted domain", async () => {
+    const port = getNextPort()
+    let openedUrl: string | null = null
+
+    const whitelistedPassthroughUrl = `https://${WHITELISTED_DOMAIN}/some-path`
+
+    const harness = createTestHarness({
+      port,
+      passthrough: true,
+      whitelist: ENABLED_WHITELIST,
+      openBrowser: async url => {
+        openedUrl = url
+      },
+      interactiveLogin: async () => {
+        throw new Error("Should not call")
+      }
+    })
+
+    const { close } = await harness.server()
+    await harness.client(whitelistedPassthroughUrl)
+    close()
+
+    // Passthrough still returns failure (400) but opens the browser
+    expect(harness.didFail()).toBe(true)
+    expect(openedUrl).toEqual(whitelistedPassthroughUrl)
+  })
+
+  it("rejects passthrough URLs with non-whitelisted domain", async () => {
+    const port = getNextPort()
+    let openedUrl: string | null = null
+
+    const nonWhitelistedPassthroughUrl = `https://${NON_WHITELISTED_DOMAIN}/some-path`
+
+    const harness = createTestHarness({
+      port,
+      passthrough: true,
+      whitelist: ENABLED_WHITELIST,
+      openBrowser: async url => {
+        openedUrl = url
+      },
+      interactiveLogin: async () => {
+        throw new Error("Should not call")
+      }
+    })
+
+    const { close } = await harness.server()
+
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({ url: nonWhitelistedPassthroughUrl })
+    )
+    close()
+
+    expect(response.statusCode).toEqual(403)
+    expect(response.statusMessage).toContain(NON_WHITELISTED_DOMAIN)
+    expect(openedUrl).toBeNull()
+  })
+
+  it("allows all URLs when whitelist is disabled", async () => {
+    const serverPort = getNextPort()
+    const redirectPort = getNextPort()
+
+    const harness = createTestHarness({
+      port: serverPort,
+      callbackParams: { code: TEST_CODE },
+      whitelist: DISABLED_WHITELIST
+    })
+
+    const { close } = await harness.server()
+
+    // Use a random domain - should work with disabled whitelist
+    const anyDomainUrl = `https://any-random-domain.com/oauth?client_id=xxx&redirect_uri=${encodeURIComponent(`http://localhost:${redirectPort}`)}&response_type=code&scope=openid&code_challenge=${TEST_CODE_CHALLENGE}&code_challenge_method=S256`
+
+    await harness.client(anyDomainUrl)
+    close()
+
+    expect(harness.didFail()).toBe(false)
+  })
+})
+
 describe("error handling", () => {
   it("returns 400 for invalid URL syntax", async () => {
     const port = getNextPort()
@@ -532,7 +680,9 @@ describe("timeout handling", () => {
       interactiveLogin: mockInteractiveLogin,
       openBrowser: async () => {},
       passthrough: false,
-      pendingRequestTtlMs: SHORT_TTL_MS
+      pendingRequestTtlMs: SHORT_TTL_MS,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
     })
 
     const { close } = await server()
@@ -590,7 +740,9 @@ describe("timeout handling", () => {
       interactiveLogin: mockInteractiveLogin,
       openBrowser: async () => {},
       passthrough: false,
-      pendingRequestTtlMs: LONG_TTL_MS
+      pendingRequestTtlMs: LONG_TTL_MS,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
     })
 
     const { close } = await server()

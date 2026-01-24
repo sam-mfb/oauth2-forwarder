@@ -4,6 +4,7 @@ import { buildOutputWriter } from "../output"
 import { buildInteractiveLogin } from "./buildInteractiveLogin"
 import { buildCredentialProxy } from "./buildCredentialProxy"
 import { findAvailablePort } from "./findAvailablePort"
+import { loadWhitelist } from "./whitelist"
 import open from "open"
 
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
@@ -65,6 +66,16 @@ const interactiveLogin = buildInteractiveLogin({
   }
   const port = userSpecifiedPort ?? (await findAvailablePort(LOCALHOST))
 
+  // Load whitelist configuration
+  const whitelist = loadWhitelist()
+  if (whitelist.enabled) {
+    appOutput(
+      `URL whitelist enabled with ${whitelist.domains.size} domain(s): ${Array.from(whitelist.domains).join(", ")}`
+    )
+  } else {
+    appOutput(`URL whitelist disabled (no whitelist file at ${whitelist.configPath})`)
+  }
+
   const credentialProxy = buildCredentialProxy({
     host: LOCALHOST,
     port,
@@ -74,7 +85,9 @@ const interactiveLogin = buildInteractiveLogin({
     debugger: DEBUG
       ? buildOutputWriter({ color: "green", stream: process.stdout })
       : undefined,
-    pendingRequestTtlMs: loginTimeoutMs
+    pendingRequestTtlMs: loginTimeoutMs,
+    whitelist,
+    logger: appOutput
   })
 
   appOutput(`Starting TCP server listening on ${LOCALHOST}:${port}`)

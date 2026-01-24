@@ -5,11 +5,22 @@ import { buildCredentialForwarder } from "../client/buildCredentialForwarder"
 import { buildRedirect } from "../client/buildRedirect"
 import { buildCredentialProxy } from "../server/buildCredentialProxy"
 import { buildInteractiveLogin } from "../server/buildInteractiveLogin"
+import { WhitelistConfig } from "../server/whitelist"
 import { parseOauth2Url } from "../parseOauth2Url"
 import { Result } from "../result"
 import { RedirectResult } from "../redirect-types"
 
 export const LOCALHOST = "127.0.0.1"
+
+// Disabled whitelist for e2e tests
+const DISABLED_WHITELIST: WhitelistConfig = {
+  enabled: false,
+  domains: new Set(),
+  configPath: ""
+}
+
+// No-op logger for e2e tests
+const NO_OP_LOGGER = (_str: string): void => {}
 
 // Port allocator to avoid conflicts
 // Use a random starting point to avoid conflicts between test runs
@@ -210,6 +221,8 @@ export function createTestHarness(options: {
   // and the container will be created at that port
   containerPort?: number
   containerResponse?: ContainerResponse
+  // Optional whitelist configuration for testing whitelist behavior
+  whitelist?: WhitelistConfig
 }): TestHarness {
   let capturedRedirectUrl = ""
   let capturedRedirectResult: RedirectResult | undefined
@@ -250,7 +263,9 @@ export function createTestHarness(options: {
     port: options.port,
     interactiveLogin,
     openBrowser: options.openBrowser ?? (async () => {}),
-    passthrough: options.passthrough ?? false
+    passthrough: options.passthrough ?? false,
+    whitelist: options.whitelist ?? DISABLED_WHITELIST,
+    logger: NO_OP_LOGGER
   })
 
   // If containerPort is specified, use real redirect against mock container

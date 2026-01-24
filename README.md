@@ -13,6 +13,7 @@ The tool also has a passthrough mode, disabled by default, which allows it to pa
   - [Using a Dockerfile](#using-a-dockerfile)
 - [Debugging](#debugging)
 - [Passthrough Mode](#passthrough-mode)
+- [URL Whitelist](#url-whitelist)
 - [Command Line Options](#command-line-options)
 - [Security](#security)
 
@@ -164,6 +165,65 @@ This is useful for:
 - Custom authentication flows that just need browser opening
 - Debugging authentication URLs that fail validation
 - Any other situation where you want a CLI that respects the BROWSER= env variable to open your hosts browser
+
+## URL Whitelist
+
+You can restrict which OAuth2 provider domains the server will accept by creating a whitelist file. When enabled, only URLs with hostnames in the whitelist will be processed; all others will be rejected with HTTP 403.
+
+This applies to both OAuth2 URLs and passthrough URLs (when passthrough mode is enabled).
+
+### Whitelist File Location
+
+The whitelist is stored at:
+```
+~/.oauth2-forwarder/whitelist.json
+```
+
+### File Format
+
+The whitelist file is a JSON file with a `domains` array:
+
+```json
+{
+  "domains": [
+    "login.microsoftonline.com",
+    "accounts.google.com",
+    "github.com"
+  ]
+}
+```
+
+### Enabling/Disabling
+
+- **To enable**: Create the whitelist file with at least one domain
+- **To disable**: Delete the whitelist file or set `domains` to an empty array
+
+### Matching Behavior
+
+- Domain matching is **exact** (no wildcard support)
+- Domain matching is **case-insensitive** (`login.microsoftonline.com` matches `LOGIN.MICROSOFTONLINE.COM`)
+- Subdomains are **not** automatically included (whitelisting `example.com` does not whitelist `sub.example.com`)
+
+### Example
+
+To only allow Microsoft and Google OAuth:
+
+```bash
+mkdir -p ~/.oauth2-forwarder
+cat > ~/.oauth2-forwarder/whitelist.json << 'EOF'
+{
+  "domains": [
+    "login.microsoftonline.com",
+    "accounts.google.com"
+  ]
+}
+EOF
+```
+
+When the server starts, it will display the whitelist status:
+```
+URL whitelist enabled with 2 domain(s): login.microsoftonline.com, accounts.google.com
+```
 
 ## Command Line Options
 
