@@ -101,7 +101,9 @@ export function buildCredentialProxy(deps: {
       // Clear the TTL timeout and remove from pending
       clearTimeout(pending.timeoutId)
       pendingRequests.delete(report.requestId)
-      debug(`Completing request ${report.requestId} with result type: ${report.result.type}`)
+      debug(
+        `Completing request ${report.requestId} with result type: ${report.result.type}`
+      )
       pending.complete(report.result)
 
       res.writeHead(200)
@@ -186,12 +188,16 @@ export function buildCredentialProxy(deps: {
           }, pendingRequestTtlMs)
 
           pendingRequests.set(requestId, { complete, timeoutId })
-          debug(`Stored pending request ${requestId} with TTL ${pendingRequestTtlMs}ms`)
+          debug(
+            `Stored pending request ${requestId} with TTL ${pendingRequestTtlMs}ms`
+          )
 
           debug("Sending callback URL and requestId to client")
           res.writeHead(200)
           const responseBody = { url: callbackUrl, requestId }
-          debug(`Ending response with output: "${JSON.stringify(responseBody)}"`)
+          debug(
+            `Ending response with output: "${JSON.stringify(responseBody)}"`
+          )
           res.end(JSON.stringify(responseBody))
         })
         .catch(error => {

@@ -7,12 +7,7 @@ export function parseOauth2Url(
   if (!url) {
     return Result.failure(new Error("Url parameter was undefined"))
   }
-  const requiredParams = [
-    "client_id",
-    "response_type",
-    "redirect_uri",
-    "scope"
-  ]
+  const requiredParams = ["client_id", "response_type", "redirect_uri", "scope"]
 
   let urlObj: URL
   try {
@@ -100,7 +95,9 @@ export function parseOauth2Url(
         "x-client-CPU": params["x-client-CPU"],
         "client_info": params.client_info,
         "code_challenge": params.code_challenge as string,
-        "code_challenge_method": params.code_challenge_method as "S256" | "plain"
+        "code_challenge_method": params.code_challenge_method as
+          | "S256"
+          | "plain"
       }
     : {
         "client_id": params.client_id as string,

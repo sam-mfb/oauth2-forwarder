@@ -147,9 +147,7 @@ export function createMockBrowserCallbackWithCapture(
  * Used for container redirect tests where the mock container needs
  * to use the callback port.
  */
-function createMockInteractiveLogin(
-  callbackParams: CallbackParams
-): (
+function createMockInteractiveLogin(callbackParams: CallbackParams): (
   url: string,
   port: number
 ) => Promise<{
@@ -291,7 +289,7 @@ export function createTestHarness(options: {
   })
 
   // Wrap server to also start container if needed
-  const wrappedServer = async () => {
+  const wrappedServer = async (): Promise<{ close: () => void }> => {
     let containerClose: (() => void) | undefined
     if (options.containerPort && options.containerResponse) {
       const container = await createMockContainer(

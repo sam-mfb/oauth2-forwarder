@@ -7,7 +7,10 @@ import {
 } from "./e2e-helpers"
 import { buildCredentialForwarder } from "../client/buildCredentialForwarder"
 import { buildCredentialProxy } from "../server/buildCredentialProxy"
-import { buildInteractiveLogin } from "../server/buildInteractiveLogin"
+import {
+  buildInteractiveLogin,
+  InteractiveLoginResult
+} from "../server/buildInteractiveLogin"
 import { buildRedirect } from "../client/buildRedirect"
 
 const TEST_CODE = "3khsh8dhHH92jd8alcde80"
@@ -496,7 +499,12 @@ describe("timeout handling", () => {
     })
 
     // This should reject with a timeout error
-    await expect(interactiveLogin("https://example.com/oauth?client_id=test&redirect_uri=http://localhost:12345&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256", port)).rejects.toThrow(/timeout/i)
+    await expect(
+      interactiveLogin(
+        "https://example.com/oauth?client_id=test&redirect_uri=http://localhost:12345&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256",
+        port
+      )
+    ).rejects.toThrow(/timeout/i)
   })
 
   it("pending request expires after TTL and returns 404 on late completion", async () => {
@@ -505,7 +513,10 @@ describe("timeout handling", () => {
     let capturedRequestId: string | null = null
 
     // Use a mock interactiveLogin that completes immediately without waiting for browser
-    const mockInteractiveLogin = async (_url: string, _responsePort: number) => {
+    const mockInteractiveLogin = async (
+      _url: string,
+      _responsePort: number
+    ): Promise<InteractiveLoginResult> => {
       const requestId = `test-${Date.now()}`
       capturedRequestId = requestId
       return {
@@ -530,7 +541,9 @@ describe("timeout handling", () => {
     const redirectPort = getNextPort()
     const response = await sendRawRequest(
       port,
-      JSON.stringify({ url: `https://example.com/oauth?client_id=test&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256` })
+      JSON.stringify({
+        url: `https://example.com/oauth?client_id=test&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256`
+      })
     )
     expect(response.statusCode).toEqual(200)
     expect(capturedRequestId).not.toBeNull()
@@ -558,7 +571,10 @@ describe("timeout handling", () => {
     let capturedRequestId: string | null = null
 
     // Use a mock interactiveLogin that completes immediately without waiting for browser
-    const mockInteractiveLogin = async (_url: string, _responsePort: number) => {
+    const mockInteractiveLogin = async (
+      _url: string,
+      _responsePort: number
+    ): Promise<InteractiveLoginResult> => {
       const requestId = `test-${Date.now()}`
       capturedRequestId = requestId
       return {
@@ -583,7 +599,9 @@ describe("timeout handling", () => {
     const redirectPort = getNextPort()
     const response = await sendRawRequest(
       port,
-      JSON.stringify({ url: `https://example.com/oauth?client_id=test&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256` })
+      JSON.stringify({
+        url: `https://example.com/oauth?client_id=test&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=abc&code_challenge_method=S256`
+      })
     )
     expect(response.statusCode).toEqual(200)
     expect(capturedRequestId).not.toBeNull()
