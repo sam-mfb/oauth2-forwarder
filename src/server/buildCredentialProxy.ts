@@ -37,6 +37,26 @@ export function buildCredentialProxy(deps: {
     // Store pending completion handlers keyed by requestId
     const pendingRequests = new Map<string, PendingRequest>()
 
+    // Helper to check whitelist and send 403 if rejected
+    // Returns true if request was rejected, false if allowed
+    const rejectIfNotWhitelisted = (
+      url: string,
+      res: http.ServerResponse,
+      isPassthrough: boolean
+    ): boolean => {
+      if (isUrlAllowed(url, deps.whitelist)) {
+        return false
+      }
+      const hostname = getHostnameFromUrl(url) ?? "unknown"
+      const reason = `Domain '${hostname}' is not in the whitelist`
+      const logPrefix = isPassthrough ? "Whitelist rejection (passthrough)" : "Whitelist rejection"
+      deps.logger(`${logPrefix}: ${reason}`)
+      debug(`Error: ${reason}`)
+      res.writeHead(403, reason)
+      res.end()
+      return true
+    }
+
     const server = http.createServer((req, res) => {
       debug(`Request received at ${req.headers.host}${req.url ?? "/"}`)
       const rawData: Buffer[] = []
@@ -131,15 +151,7 @@ export function buildCredentialProxy(deps: {
         if (Result.isFailure(oauthParamsResponse)) {
           debug(`Error: ${oauthParamsResponse.error.message}`)
           if (deps.passthrough) {
-            // Check whitelist for passthrough URL
-            if (!isUrlAllowed(deserializedBody.url, deps.whitelist)) {
-              const hostname =
-                getHostnameFromUrl(deserializedBody.url) ?? "unknown"
-              const reason = `Domain '${hostname}' is not in the whitelist`
-              deps.logger(`Whitelist rejection (passthrough): ${reason}`)
-              debug(`Error: ${reason}`)
-              res.writeHead(403, reason)
-              res.end()
+            if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
               return
             }
             debug(`Passthrough mode: opening URL in browser`)
@@ -161,14 +173,7 @@ export function buildCredentialProxy(deps: {
           debug("OAuth2 request does not include PKCE parameters")
         }
 
-        // Check whitelist for OAuth2 URL
-        if (!isUrlAllowed(deserializedBody.url, deps.whitelist)) {
-          const hostname = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
-          const reason = `Domain '${hostname}' is not in the whitelist`
-          deps.logger(`Whitelist rejection: ${reason}`)
-          debug(`Error: ${reason}`)
-          res.writeHead(403, reason)
-          res.end()
+        if (rejectIfNotWhitelisted(deserializedBody.url, res, false)) {
           return
         }
       } else {
@@ -182,15 +187,7 @@ export function buildCredentialProxy(deps: {
       if (Result.isFailure(portResult)) {
         debug(`Error: ${portResult.error.message}`)
         if (deps.passthrough) {
-          // Check whitelist for passthrough URL
-          if (!isUrlAllowed(deserializedBody.url, deps.whitelist)) {
-            const hostname =
-              getHostnameFromUrl(deserializedBody.url) ?? "unknown"
-            const reason = `Domain '${hostname}' is not in the whitelist`
-            deps.logger(`Whitelist rejection (passthrough): ${reason}`)
-            debug(`Error: ${reason}`)
-            res.writeHead(403, reason)
-            res.end()
+          if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
             return
           }
           debug(`Passthrough mode: opening URL in browser`)
