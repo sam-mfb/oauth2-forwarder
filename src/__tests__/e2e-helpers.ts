@@ -221,6 +221,8 @@ export function createTestHarness(options: {
   // and the container will be created at that port
   containerPort?: number
   containerResponse?: ContainerResponse
+  // Optional whitelist configuration for testing whitelist behavior
+  whitelist?: WhitelistConfig
 }): TestHarness {
   let capturedRedirectUrl = ""
   let capturedRedirectResult: RedirectResult | undefined
@@ -262,7 +264,7 @@ export function createTestHarness(options: {
     interactiveLogin,
     openBrowser: options.openBrowser ?? (async () => {}),
     passthrough: options.passthrough ?? false,
-    whitelist: DISABLED_WHITELIST,
+    whitelist: options.whitelist ?? DISABLED_WHITELIST,
     logger: NO_OP_LOGGER
   })
 
