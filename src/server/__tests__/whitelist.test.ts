@@ -5,7 +5,6 @@ import {
   loadWhitelist,
   isUrlAllowed,
   getHostnameFromUrl,
-  addToWhitelist,
   WhitelistConfig
 } from "../whitelist"
 
@@ -234,79 +233,4 @@ describe("whitelist", () => {
     })
   })
 
-  describe("addToWhitelist", () => {
-    it("adds domain to whitelist and writes to file", () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.writeFileSync.mockImplementation(() => {})
-
-      const config: WhitelistConfig = {
-        enabled: true,
-        domains: new Set(["existing.com"]),
-        configPath: "/home/testuser/.oauth2-forwarder/whitelist.json"
-      }
-
-      const newConfig = addToWhitelist("newdomain.com", config)
-
-      expect(newConfig.enabled).toBe(true)
-      expect(newConfig.domains.has("existing.com")).toBe(true)
-      expect(newConfig.domains.has("newdomain.com")).toBe(true)
-      expect(mockFs.writeFileSync).toHaveBeenCalledWith(
-        config.configPath,
-        expect.stringContaining("existing.com")
-      )
-      expect(mockFs.writeFileSync).toHaveBeenCalledWith(
-        config.configPath,
-        expect.stringContaining("newdomain.com")
-      )
-    })
-
-    it("normalizes domain to lowercase when adding", () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.writeFileSync.mockImplementation(() => {})
-
-      const config: WhitelistConfig = {
-        enabled: false,
-        domains: new Set(),
-        configPath: "/home/testuser/.oauth2-forwarder/whitelist.json"
-      }
-
-      const newConfig = addToWhitelist("NEWDOMAIN.COM", config)
-
-      expect(newConfig.domains.has("newdomain.com")).toBe(true)
-    })
-
-    it("creates config directory if it does not exist", () => {
-      mockFs.existsSync.mockReturnValue(false)
-      mockFs.mkdirSync.mockImplementation(() => undefined)
-      mockFs.writeFileSync.mockImplementation(() => {})
-
-      const config: WhitelistConfig = {
-        enabled: false,
-        domains: new Set(),
-        configPath: "/home/testuser/.oauth2-forwarder/whitelist.json"
-      }
-
-      addToWhitelist("newdomain.com", config)
-
-      expect(mockFs.mkdirSync).toHaveBeenCalledWith(
-        "/home/testuser/.oauth2-forwarder",
-        { recursive: true }
-      )
-    })
-
-    it("enables whitelist when adding first domain", () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.writeFileSync.mockImplementation(() => {})
-
-      const config: WhitelistConfig = {
-        enabled: false,
-        domains: new Set(),
-        configPath: "/home/testuser/.oauth2-forwarder/whitelist.json"
-      }
-
-      const newConfig = addToWhitelist("newdomain.com", config)
-
-      expect(newConfig.enabled).toBe(true)
-    })
-  })
 })

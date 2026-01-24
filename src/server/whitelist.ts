@@ -19,13 +19,6 @@ function getConfigPath(): string {
   return path.join(os.homedir(), CONFIG_DIR, WHITELIST_FILE)
 }
 
-function ensureConfigDir(): void {
-  const configDir = path.join(os.homedir(), CONFIG_DIR)
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
-}
-
 export function loadWhitelist(): WhitelistConfig {
   const configPath = getConfigPath()
 
@@ -93,25 +86,3 @@ export function getHostnameFromUrl(url: string): string | null {
   }
 }
 
-export function addToWhitelist(
-  domain: string,
-  config: WhitelistConfig
-): WhitelistConfig {
-  ensureConfigDir()
-
-  const normalizedDomain = domain.toLowerCase().trim()
-  const newDomains = new Set(config.domains)
-  newDomains.add(normalizedDomain)
-
-  const data: WhitelistFile = {
-    domains: Array.from(newDomains).sort()
-  }
-
-  fs.writeFileSync(config.configPath, JSON.stringify(data, null, 2) + "\n")
-
-  return {
-    enabled: true,
-    domains: newDomains,
-    configPath: config.configPath
-  }
-}
