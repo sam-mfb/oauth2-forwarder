@@ -11,6 +11,17 @@ import {
   buildInteractiveLogin,
   InteractiveLoginResult
 } from "../server/buildInteractiveLogin"
+import { WhitelistConfig } from "../server/whitelist"
+
+// Disabled whitelist for e2e tests
+const DISABLED_WHITELIST: WhitelistConfig = {
+  enabled: false,
+  domains: new Set(),
+  configPath: ""
+}
+
+// No-op logger for e2e tests
+const NO_OP_LOGGER = (_str: string): void => {}
 import { buildRedirect } from "../client/buildRedirect"
 
 const TEST_CODE = "3khsh8dhHH92jd8alcde80"
@@ -532,7 +543,9 @@ describe("timeout handling", () => {
       interactiveLogin: mockInteractiveLogin,
       openBrowser: async () => {},
       passthrough: false,
-      pendingRequestTtlMs: SHORT_TTL_MS
+      pendingRequestTtlMs: SHORT_TTL_MS,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
     })
 
     const { close } = await server()
@@ -590,7 +603,9 @@ describe("timeout handling", () => {
       interactiveLogin: mockInteractiveLogin,
       openBrowser: async () => {},
       passthrough: false,
-      pendingRequestTtlMs: LONG_TTL_MS
+      pendingRequestTtlMs: LONG_TTL_MS,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
     })
 
     const { close } = await server()
