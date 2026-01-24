@@ -30,17 +30,18 @@ if (Result.isFailure(serverInfoResult)) {
 
 const serverInfo = serverInfoResult.value
 
-const credentialForwarder = buildCredentialForwarder({
-  host: serverInfo.host,
-  port: serverInfo.port,
-  debugger: DEBUG
-    ? buildOutputWriter({ color: "cyan", stream: process.stderr })
-    : undefined
-})
-
 const redirect = buildRedirect({
   debugger: DEBUG
     ? buildOutputWriter({ color: "yellow", stream: process.stderr })
+    : undefined
+})
+
+const credentialForwarder = buildCredentialForwarder({
+  host: serverInfo.host,
+  port: serverInfo.port,
+  redirect: redirect,
+  debugger: DEBUG
+    ? buildOutputWriter({ color: "cyan", stream: process.stderr })
     : undefined
 })
 
@@ -54,7 +55,6 @@ const browserHelper = buildBrowserHelper({
     }
   },
   credentialForwarder: credentialForwarder,
-  redirect: redirect,
   debugger: DEBUG
     ? buildOutputWriter({ color: "green", stream: process.stderr })
     : undefined
