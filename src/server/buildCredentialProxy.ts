@@ -5,6 +5,7 @@ import { Oauth2AuthCodeRequestParams } from "../oauth2-types"
 import { extractPort } from "../extractPort"
 import { CompletionReport, RedirectResult } from "../redirect-types"
 import { InteractiveLoginResult } from "./buildInteractiveLogin"
+import { WhitelistConfig, isUrlAllowed, getHostnameFromUrl } from "./whitelist"
 
 // Default TTL: 5 minutes for pending requests before cleanup
 const DEFAULT_PENDING_REQUEST_TTL_MS = 5 * 60 * 1000
@@ -25,6 +26,8 @@ export function buildCredentialProxy(deps: {
   passthrough: boolean
   debugger?: (str: string) => void
   pendingRequestTtlMs?: number
+  whitelist: WhitelistConfig
+  logger: (str: string) => void
 }): () => Promise<{ close: () => void }> {
   return async () => {
     const debug = deps.debugger ? deps.debugger : () => {}
@@ -128,6 +131,17 @@ export function buildCredentialProxy(deps: {
         if (Result.isFailure(oauthParamsResponse)) {
           debug(`Error: ${oauthParamsResponse.error.message}`)
           if (deps.passthrough) {
+            // Check whitelist for passthrough URL
+            if (!isUrlAllowed(deserializedBody.url, deps.whitelist)) {
+              const hostname =
+                getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+              const reason = `Domain '${hostname}' is not in the whitelist`
+              deps.logger(`Whitelist rejection (passthrough): ${reason}`)
+              debug(`Error: ${reason}`)
+              res.writeHead(403, reason)
+              res.end()
+              return
+            }
             debug(`Passthrough mode: opening URL in browser`)
             deps.openBrowser(deserializedBody.url).catch(err => {
               debug(`Failed to open browser: ${err}`)
@@ -146,6 +160,17 @@ export function buildCredentialProxy(deps: {
         if (!oauthParams.code_challenge) {
           debug("OAuth2 request does not include PKCE parameters")
         }
+
+        // Check whitelist for OAuth2 URL
+        if (!isUrlAllowed(deserializedBody.url, deps.whitelist)) {
+          const hostname = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+          const reason = `Domain '${hostname}' is not in the whitelist`
+          deps.logger(`Whitelist rejection: ${reason}`)
+          debug(`Error: ${reason}`)
+          res.writeHead(403, reason)
+          res.end()
+          return
+        }
       } else {
         const reason = "Received body does not contain a 'url' property"
         debug(`Error: ${reason}`)
@@ -157,6 +182,17 @@ export function buildCredentialProxy(deps: {
       if (Result.isFailure(portResult)) {
         debug(`Error: ${portResult.error.message}`)
         if (deps.passthrough) {
+          // Check whitelist for passthrough URL
+          if (!isUrlAllowed(deserializedBody.url, deps.whitelist)) {
+            const hostname =
+              getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+            const reason = `Domain '${hostname}' is not in the whitelist`
+            deps.logger(`Whitelist rejection (passthrough): ${reason}`)
+            debug(`Error: ${reason}`)
+            res.writeHead(403, reason)
+            res.end()
+            return
+          }
           debug(`Passthrough mode: opening URL in browser`)
           deps.openBrowser(deserializedBody.url).catch(err => {
             debug(`Failed to open browser: ${err}`)
