@@ -2,6 +2,9 @@ import http from "http"
 import crypto from "crypto"
 import { RedirectResult } from "../redirect-types"
 
+// Default timeout: 5 minutes for user to complete OAuth2 flow
+const DEFAULT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000
+
 export type InteractiveLoginResult = {
   callbackUrl: string
   requestId: string
@@ -11,8 +14,10 @@ export type InteractiveLoginResult = {
 export function buildInteractiveLogin(deps: {
   openBrowser: (url: string) => Promise<void>
   debugger?: (str: string) => void
+  loginTimeoutMs?: number
 }): (url: string, responsePort: number) => Promise<InteractiveLoginResult> {
   const LOCALHOST = "127.0.0.1"
+  const loginTimeoutMs = deps.loginTimeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS
 
   const debug = deps.debugger ? deps.debugger : () => {}
 
@@ -21,7 +26,14 @@ export function buildInteractiveLogin(deps: {
       const requestId = crypto.randomUUID()
       debug(`Generated requestId: ${requestId}`)
 
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+
       const server = http.createServer((req, res) => {
+        // Clear timeout as soon as we receive a request
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = undefined
+        }
         debug(`Received a ${req.method ?? "undefined"} request`)
         req.on("error", error => {
           debug(`Error: ${JSON.stringify(error)}`)
@@ -102,6 +114,21 @@ export function buildInteractiveLogin(deps: {
       debug(`Starting temporary redirect server on port ${responsePort}...`)
       server.listen(responsePort, LOCALHOST, () => {
         debug("Temporary redirect server is listening")
+
+        // Set timeout to close the server if user doesn't complete OAuth2 flow
+        debug(`Setting login timeout: ${loginTimeoutMs}ms`)
+        timeoutId = setTimeout(() => {
+          debug(
+            `Login timeout exceeded (${loginTimeoutMs}ms), closing server on port ${responsePort}`
+          )
+          server.close()
+          reject(
+            new Error(
+              `Login timeout: user did not complete OAuth2 flow within ${loginTimeoutMs}ms`
+            )
+          )
+        }, loginTimeoutMs)
+
         debug("Opening browser for interactive login...")
         deps.openBrowser(url)
       })

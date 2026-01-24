@@ -6,6 +6,14 @@ import { extractPort } from "../extractPort"
 import { CompletionReport, RedirectResult } from "../redirect-types"
 import { InteractiveLoginResult } from "./buildInteractiveLogin"
 
+// Default TTL: 5 minutes for pending requests before cleanup
+const DEFAULT_PENDING_REQUEST_TTL_MS = 5 * 60 * 1000
+
+type PendingRequest = {
+  complete: (result: RedirectResult) => void
+  timeoutId: ReturnType<typeof setTimeout>
+}
+
 export function buildCredentialProxy(deps: {
   host: string
   port: number
@@ -16,12 +24,15 @@ export function buildCredentialProxy(deps: {
   openBrowser: (url: string) => Promise<void>
   passthrough: boolean
   debugger?: (str: string) => void
+  pendingRequestTtlMs?: number
 }): () => Promise<{ close: () => void }> {
   return async () => {
     const debug = deps.debugger ? deps.debugger : () => {}
+    const pendingRequestTtlMs =
+      deps.pendingRequestTtlMs ?? DEFAULT_PENDING_REQUEST_TTL_MS
 
     // Store pending completion handlers keyed by requestId
-    const pendingRequests = new Map<string, (result: RedirectResult) => void>()
+    const pendingRequests = new Map<string, PendingRequest>()
 
     const server = http.createServer((req, res) => {
       debug(`Request received at ${req.headers.host}${req.url ?? "/"}`)
@@ -78,8 +89,8 @@ export function buildCredentialProxy(deps: {
         return
       }
 
-      const complete = pendingRequests.get(report.requestId)
-      if (!complete) {
+      const pending = pendingRequests.get(report.requestId)
+      if (!pending) {
         const reason = `No pending request found for requestId: ${report.requestId}`
         debug(`Error: ${reason}`)
         res.writeHead(404, reason)
@@ -87,10 +98,11 @@ export function buildCredentialProxy(deps: {
         return
       }
 
-      // Remove from pending and call completion handler
+      // Clear the TTL timeout and remove from pending
+      clearTimeout(pending.timeoutId)
       pendingRequests.delete(report.requestId)
       debug(`Completing request ${report.requestId} with result type: ${report.result.type}`)
-      complete(report.result)
+      pending.complete(report.result)
 
       res.writeHead(200)
       res.end()
@@ -165,9 +177,16 @@ export function buildCredentialProxy(deps: {
         .then(({ callbackUrl, requestId, complete }) => {
           debug(`Interactive login received callback, requestId: ${requestId}`)
 
-          // Store the completion handler
-          pendingRequests.set(requestId, complete)
-          debug(`Stored pending request ${requestId}`)
+          // Store the completion handler with TTL timeout for cleanup
+          const timeoutId = setTimeout(() => {
+            debug(
+              `Pending request ${requestId} expired after ${pendingRequestTtlMs}ms, cleaning up`
+            )
+            pendingRequests.delete(requestId)
+          }, pendingRequestTtlMs)
+
+          pendingRequests.set(requestId, { complete, timeoutId })
+          debug(`Stored pending request ${requestId} with TTL ${pendingRequestTtlMs}ms`)
 
           debug("Sending callback URL and requestId to client")
           res.writeHead(200)
@@ -186,6 +205,16 @@ export function buildCredentialProxy(deps: {
 
     debug("Starting credential proxy...")
     server.listen(deps.port, deps.host)
-    return { close: () => server.close() }
+    return {
+      close: () => {
+        // Clear all pending request timeouts on shutdown
+        for (const [requestId, pending] of pendingRequests) {
+          debug(`Clearing pending request timeout for ${requestId} on shutdown`)
+          clearTimeout(pending.timeoutId)
+        }
+        pendingRequests.clear()
+        server.close()
+      }
+    }
   }
 }
