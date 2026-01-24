@@ -36,8 +36,8 @@ type Oauth2NoPKCEParams = {
  * Standard params using discriminated union for PKCE - ensures either both
  * PKCE params are present or neither is (making impossible states impossible)
  */
-export type Oauth2AuthCodeRequestStandardParams = Oauth2AuthCodeRequestBaseParams &
-  (Oauth2PKCEParams | Oauth2NoPKCEParams)
+export type Oauth2AuthCodeRequestStandardParams =
+  Oauth2AuthCodeRequestBaseParams & (Oauth2PKCEParams | Oauth2NoPKCEParams)
 
 /**
  * Optional params that are seen in msal-node generated requests, even though not

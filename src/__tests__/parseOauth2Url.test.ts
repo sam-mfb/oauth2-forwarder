@@ -107,7 +107,9 @@ describe("parseOauth2Url", () => {
 
     expect(Result.isFailure(parseResult)).toBe(true)
     if (Result.isFailure(parseResult)) {
-      expect(parseResult.error.message).toContain("PKCE parameters must be used together")
+      expect(parseResult.error.message).toContain(
+        "PKCE parameters must be used together"
+      )
     }
   })
 
@@ -119,7 +121,9 @@ describe("parseOauth2Url", () => {
 
     expect(Result.isFailure(parseResult)).toBe(true)
     if (Result.isFailure(parseResult)) {
-      expect(parseResult.error.message).toContain("PKCE parameters must be used together")
+      expect(parseResult.error.message).toContain(
+        "PKCE parameters must be used together"
+      )
     }
   })
 

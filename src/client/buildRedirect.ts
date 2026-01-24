@@ -94,7 +94,9 @@ export function buildRedirect(deps: {
     url: string,
     remainingRedirects: number
   ): Promise<RedirectResult> => {
-    debug(`Making GET request to url: "${url}" (${remainingRedirects} redirects remaining)`)
+    debug(
+      `Making GET request to url: "${url}" (${remainingRedirects} redirects remaining)`
+    )
 
     if (remainingRedirects <= 0) {
       return {

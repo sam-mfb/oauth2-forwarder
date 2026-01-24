@@ -67,7 +67,9 @@ describe("buildRedirect", () => {
 
     it("should return redirect for 302 to non-localhost", async () => {
       const externalUrl = "https://example.com/success"
-      serverPort = await createServer("127.0.0.1", 302, { location: externalUrl })
+      serverPort = await createServer("127.0.0.1", 302, {
+        location: externalUrl
+      })
       const redirect = buildRedirect({})
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("redirect")
@@ -78,7 +80,9 @@ describe("buildRedirect", () => {
 
     it("should return redirect for 301 to non-localhost", async () => {
       const externalUrl = "https://example.com/permanent"
-      serverPort = await createServer("127.0.0.1", 301, { location: externalUrl })
+      serverPort = await createServer("127.0.0.1", 301, {
+        location: externalUrl
+      })
       const redirect = buildRedirect({})
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("redirect")
@@ -142,7 +146,9 @@ describe("buildRedirect", () => {
       const result = await redirect("http://localhost:59999/callback")
       expect(result.type).toBe("error")
       if (result.type === "error") {
-        expect(result.message).toMatch(/Connection refused on both IPv4 and IPv6/)
+        expect(result.message).toMatch(
+          /Connection refused on both IPv4 and IPv6/
+        )
       }
     })
 

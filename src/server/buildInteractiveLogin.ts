@@ -79,8 +79,10 @@ export function buildInteractiveLogin(deps: {
           server.close()
 
           // Create completion function that will respond to browser
-          const complete = (result: RedirectResult) => {
-            debug(`Completing request ${requestId} with result type: ${result.type}`)
+          const complete = (result: RedirectResult): void => {
+            debug(
+              `Completing request ${requestId} with result type: ${result.type}`
+            )
 
             switch (result.type) {
               case "redirect":
@@ -95,7 +97,9 @@ export function buildInteractiveLogin(deps: {
                 if (result.body) {
                   res.end(result.body)
                 } else {
-                  res.end("Authentication completed. You may close this page now.")
+                  res.end(
+                    "Authentication completed. You may close this page now."
+                  )
                 }
                 break
 
