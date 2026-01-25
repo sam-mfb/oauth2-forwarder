@@ -1,5 +1,5 @@
 import http from "http"
-import crypto from "crypto"
+import { nanoid } from "nanoid"
 import { RedirectResult } from "../redirect-types"
 
 // Default timeout: 5 minutes for user to complete OAuth2 flow
@@ -23,7 +23,7 @@ export function buildInteractiveLogin(deps: {
 
   return async (url, responsePort) => {
     return new Promise<InteractiveLoginResult>((resolve, reject) => {
-      const requestId = crypto.randomUUID()
+      const requestId = nanoid()
       debug(`Generated requestId: ${requestId}`)
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined
