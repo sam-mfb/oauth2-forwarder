@@ -11,8 +11,8 @@
   "scripts": {
     "build": "rimraf ./dist && webpack && node prepend-shebang.js",
     "zip-release": "./release.sh",
-    "test": "jest --watch",
-    "e2e-test": "jest -c ./jest.e2e.config.js",
+    "test": "vitest",
+    "e2e-test": "vitest --config vitest.e2e.config.ts",
     "lint": "eslint .",
     "fix-formatting": "prettier --write --config ./prettier.config.js ./src/",
     "check-formatting": "prettier --check --config ./prettier.config.js ./src/"
@@ -41,16 +41,14 @@
   "devDependencies": {
     "@eslint/js": "^9.25.1",
     "@types/eslint__js": "^8.42.3",
-    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "eslint": "^9.25.1",
-    "jest": "^30.2.0",
     "prettier": "^3.5.3",
     "rimraf": "^6.0.1",
-    "ts-jest": "^29.3.2",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.1",
+    "vitest": "^3.0.5",
     "webpack": "^5.99.7",
     "webpack-cli": "^6.0.1"
   },

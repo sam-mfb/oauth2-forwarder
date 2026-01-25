@@ -1,6 +1,6 @@
 import fs from "fs"
-import path from "path"
 import os from "os"
+import { vi, type Mocked } from "vitest"
 import {
   loadWhitelist,
   isUrlAllowed,
@@ -9,15 +9,15 @@ import {
 } from "../whitelist"
 
 // Mock fs and os modules
-jest.mock("fs")
-jest.mock("os")
+vi.mock("fs")
+vi.mock("os")
 
-const mockFs = fs as jest.Mocked<typeof fs>
-const mockOs = os as jest.Mocked<typeof os>
+const mockFs = fs as Mocked<typeof fs>
+const mockOs = os as Mocked<typeof os>
 
 describe("whitelist", () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockOs.homedir.mockReturnValue("/home/testuser")
   })
 
