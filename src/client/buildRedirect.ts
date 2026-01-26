@@ -22,13 +22,31 @@ export function buildRedirect(deps: {
 }): (url: string) => Promise<RedirectResult> {
   const debug = deps.debugger ? deps.debugger : () => {}
 
-  const makeRequest = (url: string): Promise<RequestResult> => {
+  const makeRequest = (
+    url: string,
+    hostHeader?: string
+  ): Promise<RequestResult> => {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         reject(new Error(`Request timed out after ${TIMEOUT_MS}ms`))
       }, TIMEOUT_MS)
 
-      const req = http.get(url, res => {
+      const parsedUrl = new URL(url)
+      // Strip brackets from IPv6 addresses - URL.hostname returns "[::1]" but
+      // http.request expects "::1"
+      const hostname = parsedUrl.hostname.replace(/^\[|\]$/g, "")
+      const options: http.RequestOptions = {
+        hostname,
+        port: parsedUrl.port || 80,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: "GET"
+      }
+
+      if (hostHeader) {
+        options.headers = { Host: hostHeader }
+      }
+
+      const req = http.request(options, res => {
         clearTimeout(timeoutId)
         const chunks: Buffer[] = []
 
@@ -56,6 +74,8 @@ export function buildRedirect(deps: {
         debug(`Received error "${JSON.stringify(error)}"`)
         reject(error)
       })
+
+      req.end()
     })
   }
 
@@ -63,19 +83,23 @@ export function buildRedirect(deps: {
     url: string
   ): Promise<RequestResult> => {
     if (isLoopbackUrl(url)) {
+      // Preserve the original host for the Host header (e.g., "localhost:8080")
+      // Some OAuth listeners (like MSAL) validate the Host header matches their expected value
+      const originalHost = new URL(url).host
       const ipv4Url = convertLoopbackUrl(url, "127.0.0.1")
       const ipv6Url = convertLoopbackUrl(url, "[::1]")
 
       debug(`Loopback URL detected, will try IPv4 then IPv6`)
+      debug(`Preserving original Host header: ${originalHost}`)
       try {
         debug(`Trying IPv4: ${ipv4Url}`)
-        return await makeRequest(ipv4Url)
+        return await makeRequest(ipv4Url, originalHost)
       } catch (ipv4Error) {
         const err = ipv4Error as NodeJS.ErrnoException
         if (err.code === "ECONNREFUSED") {
           debug(`IPv4 connection refused, trying IPv6: ${ipv6Url}`)
           try {
-            return await makeRequest(ipv6Url)
+            return await makeRequest(ipv6Url, originalHost)
           } catch (ipv6Error) {
             const err6 = ipv6Error as NodeJS.ErrnoException
             throw new Error(
