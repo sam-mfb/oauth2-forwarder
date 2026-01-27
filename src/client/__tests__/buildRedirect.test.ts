@@ -34,16 +34,18 @@ describe("buildRedirect", () => {
     })
   }
 
-  afterEach(done => {
-    if (server && server.listening) {
-      server.close(() => {
+  afterEach(() => {
+    return new Promise<void>(resolve => {
+      if (server && server.listening) {
+        server.close(() => {
+          server = null
+          resolve()
+        })
+      } else {
         server = null
-        done()
-      })
-    } else {
-      server = null
-      done()
-    }
+        resolve()
+      }
+    })
   })
 
   describe("basic functionality", () => {

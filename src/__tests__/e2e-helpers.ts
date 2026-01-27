@@ -1,5 +1,5 @@
 import http from "http"
-import crypto from "crypto"
+import { nanoid } from "nanoid"
 import { buildBrowserHelper } from "../client/buildBrowserHelper"
 import { buildCredentialForwarder } from "../client/buildCredentialForwarder"
 import { buildRedirect } from "../client/buildRedirect"
@@ -180,7 +180,7 @@ function createMockInteractiveLogin(callbackParams: CallbackParams): (
       }
     })
 
-    const requestId = crypto.randomUUID()
+    const requestId = nanoid()
 
     return {
       callbackUrl: callbackUrl.toString(),
