@@ -63,6 +63,8 @@ const interactiveLogin = buildInteractiveLogin({
 })
 
 ;(async () => {
+  logger.info(`o2f-server v${getVersion()}`)
+
   if (userSpecifiedPort) {
     logger.info(`Attempting to use user specified port ${userSpecifiedPort}`)
   }
