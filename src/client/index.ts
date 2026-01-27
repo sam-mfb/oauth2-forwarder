@@ -2,6 +2,7 @@ import { getVersion } from "../version"
 import { EnvKey } from "../env"
 import { buildLogger, type LogLevel } from "../logger"
 import { Result } from "../result"
+import { getDomain } from "../url-utils"
 import { buildBrowserHelper } from "./buildBrowserHelper"
 import { buildCredentialForwarder } from "./buildCredentialForwarder"
 import { buildRedirect } from "./buildRedirect"
@@ -58,16 +59,6 @@ const browserHelper = buildBrowserHelper({
 
 const requestUrl = process.argv[2]
 
-// Extract domain for cleaner info logging
-const getDomain = (url: string | undefined): string => {
-  if (!url) return "(none)"
-  try {
-    return new URL(url).hostname
-  } catch {
-    return "(invalid URL)"
-  }
-}
-
-logger.info(`Processing request for ${getDomain(requestUrl)}`)
+logger.info(`Processing request for ${requestUrl ? getDomain(requestUrl) ?? "(invalid URL)" : "(none)"}`)
 logger.debug(`Full URL: ${requestUrl ?? "(none)"}`)
 browserHelper(requestUrl).catch(err => logger.error(String(err)))

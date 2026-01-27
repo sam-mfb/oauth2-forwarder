@@ -1,14 +1,6 @@
 import { RedirectResult } from "../redirect-types"
 import { type Logger } from "../logger"
-
-// Extract domain from URL for cleaner logging
-const getDomain = (url: string): string => {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return "unknown"
-  }
-}
+import { getDomain } from "../url-utils"
 
 export function buildBrowserHelper(deps: {
   onExit: {
@@ -27,7 +19,7 @@ export function buildBrowserHelper(deps: {
       return
     }
     logger.debug(`Received url "${requestUrl}"`)
-    const domain = getDomain(requestUrl)
+    const domain = getDomain(requestUrl) ?? "unknown"
     try {
       const result = await deps.credentialForwarder(requestUrl)
       logger.info(`Completed request for ${domain}`)

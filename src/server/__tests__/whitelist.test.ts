@@ -4,7 +4,7 @@ import { vi, type Mocked } from "vitest"
 import {
   loadWhitelist,
   isUrlAllowed,
-  getHostnameFromUrl,
+  getDomain,
   WhitelistConfig
 } from "../whitelist"
 
@@ -212,24 +212,24 @@ describe("whitelist", () => {
     })
   })
 
-  describe("getHostnameFromUrl", () => {
+  describe("getDomain", () => {
     it("extracts hostname from valid URL", () => {
       expect(
-        getHostnameFromUrl(
+        getDomain(
           "https://login.microsoftonline.com/tenant/oauth2/authorize"
         )
       ).toBe("login.microsoftonline.com")
     })
 
     it("returns lowercase hostname", () => {
-      expect(getHostnameFromUrl("https://LOGIN.EXAMPLE.COM/path")).toBe(
+      expect(getDomain("https://LOGIN.EXAMPLE.COM/path")).toBe(
         "login.example.com"
       )
     })
 
     it("returns null for invalid URL", () => {
-      expect(getHostnameFromUrl("not-a-url")).toBe(null)
-      expect(getHostnameFromUrl("")).toBe(null)
+      expect(getDomain("not-a-url")).toBe(null)
+      expect(getDomain("")).toBe(null)
     })
   })
 

@@ -5,7 +5,7 @@ import { Oauth2AuthCodeRequestParams } from "../oauth2-types"
 import { extractPort } from "../extractPort"
 import { CompletionReport, RedirectResult } from "../redirect-types"
 import { InteractiveLoginResult } from "./buildInteractiveLogin"
-import { WhitelistConfig, isUrlAllowed, getHostnameFromUrl } from "./whitelist"
+import { WhitelistConfig, isUrlAllowed, getDomain } from "./whitelist"
 import { type Logger } from "../logger"
 
 // Default TTL: 5 minutes for pending requests before cleanup
@@ -48,7 +48,7 @@ export function buildCredentialProxy(deps: {
       if (isUrlAllowed(url, deps.whitelist)) {
         return false
       }
-      const hostname = getHostnameFromUrl(url) ?? "unknown"
+      const hostname = getDomain(url) ?? "unknown"
       const reason = `Domain '${hostname}' is not in the whitelist`
       const logPrefix = isPassthrough ? "Whitelist rejection (passthrough)" : "Whitelist rejection"
       logger.warn(`${logPrefix}: ${reason}`)
@@ -153,7 +153,7 @@ export function buildCredentialProxy(deps: {
             if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
               return
             }
-            const passthroughDomain = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+            const passthroughDomain = getDomain(deserializedBody.url) ?? "unknown"
             logger.info(`Passthrough: opening ${passthroughDomain} in browser`)
             deps.openBrowser(deserializedBody.url).catch(err => {
               logger.error(`Failed to open browser: ${err}`)
@@ -190,7 +190,7 @@ export function buildCredentialProxy(deps: {
           if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
             return
           }
-          const passthroughDomain = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+          const passthroughDomain = getDomain(deserializedBody.url) ?? "unknown"
           logger.info(`Passthrough: opening ${passthroughDomain} in browser`)
           deps.openBrowser(deserializedBody.url).catch(err => {
             logger.error(`Failed to open browser: ${err}`)
@@ -208,7 +208,7 @@ export function buildCredentialProxy(deps: {
       const port = portResult.value ?? 80
       logger.debug(`Using port number: ${port}`)
 
-      const domain = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+      const domain = getDomain(deserializedBody.url) ?? "unknown"
       logger.info(`Received OAuth request for ${domain}`)
       deps
         .interactiveLogin(deserializedBody.url, port)
