@@ -1,6 +1,7 @@
 import { getVersion } from "../version"
 import { EnvKey } from "../env"
 import { buildOutputWriter } from "../output"
+import { buildLogger, type LogLevel } from "../logger"
 import { buildInteractiveLogin } from "./buildInteractiveLogin"
 import { buildCredentialProxy } from "./buildCredentialProxy"
 import { findAvailablePort } from "./findAvailablePort"
@@ -27,7 +28,11 @@ if (loginTimeoutEnv) {
   }
 }
 
-const appOutput = buildOutputWriter({ color: "cyan", stream: process.stdout })
+// Set log level based on DEBUG env variable
+const logLevel: LogLevel = DEBUG ? "debug" : "info"
+const logger = buildLogger({ level: logLevel, stream: process.stdout, prefix: "server" })
+
+// User-facing output (not structured logs)
 const instructions = buildOutputWriter({
   color: "yellow",
   stream: process.stdout
@@ -36,7 +41,6 @@ const configOutput = buildOutputWriter({
   color: "white",
   stream: process.stdout
 })
-const errorOutput = buildOutputWriter({ color: "red", stream: process.stderr })
 
 let userSpecifiedPort: number | null = null
 const portEnv = process.env[EnvKey.PORT]
@@ -54,26 +58,24 @@ const openBrowser = async (url: string): Promise<void> => {
 
 const interactiveLogin = buildInteractiveLogin({
   openBrowser: openBrowser,
-  debugger: DEBUG
-    ? buildOutputWriter({ color: "magenta", stream: process.stdout })
-    : undefined,
+  logger,
   loginTimeoutMs
 })
 
 ;(async () => {
   if (userSpecifiedPort) {
-    appOutput(`Attempting to use user specified port ${userSpecifiedPort}`)
+    logger.info(`Attempting to use user specified port ${userSpecifiedPort}`)
   }
   const port = userSpecifiedPort ?? (await findAvailablePort(LOCALHOST))
 
   // Load whitelist configuration
   const whitelist = loadWhitelist()
   if (whitelist.enabled) {
-    appOutput(
+    logger.info(
       `URL whitelist enabled with ${whitelist.domains.size} domain(s): ${Array.from(whitelist.domains).join(", ")}`
     )
   } else {
-    appOutput(`URL whitelist disabled (no whitelist file at ${whitelist.configPath})`)
+    logger.info(`URL whitelist disabled (no whitelist file at ${whitelist.configPath})`)
   }
 
   const credentialProxy = buildCredentialProxy({
@@ -82,17 +84,14 @@ const interactiveLogin = buildInteractiveLogin({
     interactiveLogin: interactiveLogin,
     openBrowser: openBrowser,
     passthrough: PASSTHROUGH,
-    debugger: DEBUG
-      ? buildOutputWriter({ color: "green", stream: process.stdout })
-      : undefined,
     pendingRequestTtlMs: loginTimeoutMs,
     whitelist,
-    logger: appOutput
+    logger
   })
 
-  appOutput(`Starting TCP server listening on ${LOCALHOST}:${port}`)
+  logger.info(`Starting TCP server listening on ${LOCALHOST}:${port}`)
   if (PASSTHROUGH) {
-    appOutput(
+    logger.info(
       "Passthrough mode enabled: malformed URLs will be opened in browser"
     )
   }
@@ -110,12 +109,12 @@ const interactiveLogin = buildInteractiveLogin({
     // note even though this is async it only awaits the start of the server--execution will proceed
     // after the server successfully starts
     await credentialProxy()
-    appOutput("Ctrl+c to stop server.")
+    logger.info("Server started. Press Ctrl+C to stop.")
   } catch (err) {
-    errorOutput(JSON.stringify(err))
+    logger.error(JSON.stringify(err))
     process.exit(1)
   }
 })().catch(err => {
-  errorOutput(JSON.stringify(err))
+  logger.error(JSON.stringify(err))
   process.exit(1)
 })

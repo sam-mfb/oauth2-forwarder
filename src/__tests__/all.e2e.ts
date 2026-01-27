@@ -12,6 +12,8 @@ import {
   InteractiveLoginResult
 } from "../server/buildInteractiveLogin"
 import { WhitelistConfig } from "../server/whitelist"
+import { buildNoOpLogger } from "../logger"
+import { buildRedirect } from "../client/buildRedirect"
 
 // Disabled whitelist for e2e tests
 const DISABLED_WHITELIST: WhitelistConfig = {
@@ -21,8 +23,7 @@ const DISABLED_WHITELIST: WhitelistConfig = {
 }
 
 // No-op logger for e2e tests
-const NO_OP_LOGGER = (_str: string): void => {}
-import { buildRedirect } from "../client/buildRedirect"
+const NO_OP_LOGGER = buildNoOpLogger()
 
 const TEST_CODE = "3khsh8dhHH92jd8alcde80"
 const TEST_STATE = "test_state_abc123"

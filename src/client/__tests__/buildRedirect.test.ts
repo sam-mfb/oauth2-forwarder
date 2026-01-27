@@ -1,5 +1,18 @@
 import http from "http"
 import { buildRedirect } from "../buildRedirect"
+import { type Logger } from "../../logger"
+
+// Create a test logger that captures messages
+function createTestLogger(): { logger: Logger; messages: string[] } {
+  const messages: string[] = []
+  const logger: Logger = {
+    error: (msg: string) => messages.push(`[ERROR] ${msg}`),
+    warn: (msg: string) => messages.push(`[WARN] ${msg}`),
+    info: (msg: string) => messages.push(`[INFO] ${msg}`),
+    debug: (msg: string) => messages.push(`[DEBUG] ${msg}`)
+  }
+  return { logger, messages }
+}
 
 describe("buildRedirect", () => {
   let server: http.Server | null = null
@@ -127,18 +140,16 @@ describe("buildRedirect", () => {
     it("should try IPv6 when IPv4 connection is refused", async () => {
       // Create server only on IPv6
       serverPort = await createServer("::1", 200)
-      const debugMessages: string[] = []
-      const redirect = buildRedirect({
-        debugger: msg => debugMessages.push(msg)
-      })
+      const { logger, messages } = createTestLogger()
+      const redirect = buildRedirect({ logger })
 
       // Should fail on IPv4, then succeed on IPv6
       const result = await redirect(`http://localhost:${serverPort}/callback`)
       expect(result.type).toBe("success")
 
       // Verify it tried IPv4 first, then IPv6
-      expect(debugMessages.some(m => m.includes("Trying IPv4"))).toBe(true)
-      expect(debugMessages.some(m => m.includes("trying IPv6"))).toBe(true)
+      expect(messages.some(m => m.includes("Trying IPv4"))).toBe(true)
+      expect(messages.some(m => m.includes("trying IPv6"))).toBe(true)
     })
 
     it("should return error when both IPv4 and IPv6 fail", async () => {
@@ -234,17 +245,15 @@ describe("buildRedirect", () => {
   })
 
   describe("debug output", () => {
-    it("should call debugger with request details", async () => {
+    it("should call logger with request details", async () => {
       serverPort = await createServer("127.0.0.1", 200)
-      const debugMessages: string[] = []
-      const redirect = buildRedirect({
-        debugger: msg => debugMessages.push(msg)
-      })
+      const { logger, messages } = createTestLogger()
+      const redirect = buildRedirect({ logger })
 
       await redirect(`http://127.0.0.1:${serverPort}/callback`)
 
-      expect(debugMessages.length).toBeGreaterThan(0)
-      expect(debugMessages.some(m => m.includes("GET request"))).toBe(true)
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages.some(m => m.includes("GET request"))).toBe(true)
     })
   })
 })

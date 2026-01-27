@@ -1,6 +1,7 @@
 import http from "http"
 import { isLoopbackUrl, convertLoopbackUrl } from "../loopback"
 import { RedirectResult } from "../redirect-types"
+import { type Logger, buildNoOpLogger } from "../logger"
 
 const MAX_REDIRECTS = 10
 const TIMEOUT_MS = 30000
@@ -18,9 +19,9 @@ type RequestResult = {
  * servers may bind to one or the other.
  */
 export function buildRedirect(deps: {
-  debugger?: (str: string) => void
+  logger?: Logger
 }): (url: string) => Promise<RedirectResult> {
-  const debug = deps.debugger ? deps.debugger : () => {}
+  const logger = deps.logger ?? buildNoOpLogger()
 
   const makeRequest = (
     url: string,
@@ -71,7 +72,7 @@ export function buildRedirect(deps: {
 
       req.on("error", error => {
         clearTimeout(timeoutId)
-        debug(`Received error "${JSON.stringify(error)}"`)
+        logger.error(`Request error: ${JSON.stringify(error)}`)
         reject(error)
       })
 
@@ -89,15 +90,15 @@ export function buildRedirect(deps: {
       const ipv4Url = convertLoopbackUrl(url, "127.0.0.1")
       const ipv6Url = convertLoopbackUrl(url, "[::1]")
 
-      debug(`Loopback URL detected, will try IPv4 then IPv6`)
-      debug(`Preserving original Host header: ${originalHost}`)
+      logger.debug(`Loopback URL detected, will try IPv4 then IPv6`)
+      logger.debug(`Preserving original Host header: ${originalHost}`)
       try {
-        debug(`Trying IPv4: ${ipv4Url}`)
+        logger.debug(`Trying IPv4: ${ipv4Url}`)
         return await makeRequest(ipv4Url, originalHost)
       } catch (ipv4Error) {
         const err = ipv4Error as NodeJS.ErrnoException
         if (err.code === "ECONNREFUSED") {
-          debug(`IPv4 connection refused, trying IPv6: ${ipv6Url}`)
+          logger.debug(`IPv4 connection refused, trying IPv6: ${ipv6Url}`)
           try {
             return await makeRequest(ipv6Url, originalHost)
           } catch (ipv6Error) {
@@ -118,7 +119,7 @@ export function buildRedirect(deps: {
     url: string,
     remainingRedirects: number
   ): Promise<RedirectResult> => {
-    debug(
+    logger.debug(
       `Making GET request to url: "${url}" (${remainingRedirects} redirects remaining)`
     )
 
@@ -137,7 +138,7 @@ export function buildRedirect(deps: {
       return { type: "error", message }
     }
 
-    debug(`Received status ${result.statusCode}`)
+    logger.debug(`Received status ${result.statusCode}`)
 
     if (result.statusCode === 301 || result.statusCode === 302) {
       const location = result.location
@@ -148,11 +149,11 @@ export function buildRedirect(deps: {
         }
       }
 
-      debug(`Redirect to: ${location}`)
+      logger.debug(`Redirect to: ${location}`)
 
       // If redirect is to a loopback URL, follow it
       if (isLoopbackUrl(location)) {
-        debug(`Following localhost redirect`)
+        logger.debug(`Following localhost redirect`)
         return followRedirects(location, remainingRedirects - 1)
       }
 
@@ -161,7 +162,7 @@ export function buildRedirect(deps: {
     }
 
     if (result.statusCode === 200) {
-      debug(`Success with body length: ${result.body.length}`)
+      logger.debug(`Success with body length: ${result.body.length}`)
       return { type: "success", body: result.body || undefined }
     }
 

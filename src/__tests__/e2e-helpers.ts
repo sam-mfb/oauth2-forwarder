@@ -9,6 +9,7 @@ import { WhitelistConfig } from "../server/whitelist"
 import { parseOauth2Url } from "../parseOauth2Url"
 import { Result } from "../result"
 import { RedirectResult } from "../redirect-types"
+import { buildNoOpLogger } from "../logger"
 
 export const LOCALHOST = "127.0.0.1"
 
@@ -20,7 +21,7 @@ const DISABLED_WHITELIST: WhitelistConfig = {
 }
 
 // No-op logger for e2e tests
-const NO_OP_LOGGER = (_str: string): void => {}
+const NO_OP_LOGGER = buildNoOpLogger()
 
 // Port allocator to avoid conflicts
 // Use a random starting point to avoid conflicts between test runs
