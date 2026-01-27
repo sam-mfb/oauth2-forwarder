@@ -1,14 +1,14 @@
 import http from "http"
 import { CompletionReport, RedirectResult } from "../redirect-types"
-import { type Logger, buildNoOpLogger } from "../logger"
+import { type Logger } from "../logger"
 
 export function buildCredentialForwarder(deps: {
   host: string
   port: number
   redirect: (url: string) => Promise<RedirectResult>
-  logger?: Logger
+  logger: Logger
 }): (url: string) => Promise<RedirectResult> {
-  const logger = deps.logger ?? buildNoOpLogger()
+  const { logger } = deps
 
   const sendOauth2Request = (
     url: string

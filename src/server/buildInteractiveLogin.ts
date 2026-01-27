@@ -1,7 +1,7 @@
 import http from "http"
 import { nanoid } from "nanoid"
 import { RedirectResult } from "../redirect-types"
-import { type Logger, buildNoOpLogger } from "../logger"
+import { type Logger } from "../logger"
 
 // Default timeout: 5 minutes for user to complete OAuth2 flow
 const DEFAULT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000
@@ -14,12 +14,12 @@ export type InteractiveLoginResult = {
 
 export function buildInteractiveLogin(deps: {
   openBrowser: (url: string) => Promise<void>
-  logger?: Logger
+  logger: Logger
   loginTimeoutMs?: number
 }): (url: string, responsePort: number) => Promise<InteractiveLoginResult> {
   const LOCALHOST = "127.0.0.1"
   const loginTimeoutMs = deps.loginTimeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS
-  const logger = deps.logger ?? buildNoOpLogger()
+  const { logger } = deps
 
   return async (url, responsePort) => {
     return new Promise<InteractiveLoginResult>((resolve, reject) => {

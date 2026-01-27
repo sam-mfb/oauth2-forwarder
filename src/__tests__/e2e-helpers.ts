@@ -9,7 +9,7 @@ import { WhitelistConfig } from "../server/whitelist"
 import { parseOauth2Url } from "../parseOauth2Url"
 import { Result } from "../result"
 import { RedirectResult } from "../redirect-types"
-import { buildNoOpLogger } from "../logger"
+import { buildNoOpLogger } from "./test-logger"
 
 export const LOCALHOST = "127.0.0.1"
 
@@ -250,12 +250,14 @@ export function createTestHarness(options: {
     interactiveLogin = buildInteractiveLogin({
       openBrowser: async url => {
         await mockCallback(url)
-      }
+      },
+      logger: NO_OP_LOGGER
     })
   } else {
     // No callback params: use real interactiveLogin with no-op browser
     interactiveLogin = buildInteractiveLogin({
-      openBrowser: async () => {}
+      openBrowser: async () => {},
+      logger: NO_OP_LOGGER
     })
   }
 
@@ -272,7 +274,7 @@ export function createTestHarness(options: {
   // If containerPort is specified, use real redirect against mock container
   // Otherwise use a mock redirect that just captures the URL
   const redirect = options.containerPort
-    ? buildRedirect({})
+    ? buildRedirect({ logger: NO_OP_LOGGER })
     : async (url: string): Promise<RedirectResult> => {
         capturedRedirectUrl = url
         return { type: "success" }
@@ -281,7 +283,8 @@ export function createTestHarness(options: {
   const forwarder = buildCredentialForwarder({
     host: LOCALHOST,
     port: options.port,
-    redirect
+    redirect,
+    logger: NO_OP_LOGGER
   })
 
   let failed = false
@@ -301,7 +304,8 @@ export function createTestHarness(options: {
         capturedRedirectUrl = result.location
       }
       return result
-    }
+    },
+    logger: NO_OP_LOGGER
   })
 
   // Wrap server to also start container if needed

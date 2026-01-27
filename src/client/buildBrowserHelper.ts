@@ -1,5 +1,5 @@
 import { RedirectResult } from "../redirect-types"
-import { type Logger, buildNoOpLogger } from "../logger"
+import { type Logger } from "../logger"
 
 // Extract domain from URL for cleaner logging
 const getDomain = (url: string): string => {
@@ -16,10 +16,10 @@ export function buildBrowserHelper(deps: {
     failure: () => void
   }
   credentialForwarder: (url: string) => Promise<RedirectResult>
-  logger?: Logger
+  logger: Logger
 }): (requestUrl: string | undefined) => Promise<void> {
   return async requestUrl => {
-    const logger = deps.logger ?? buildNoOpLogger()
+    const { logger } = deps
 
     if (!requestUrl) {
       logger.warn("No URL argument present")

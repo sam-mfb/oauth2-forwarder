@@ -10,19 +10,19 @@ export type Logger = {
   debug: (msg: string) => void
 }
 
-const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
+const LOG_LEVEL_PRIORITY = {
   debug: 0,
   info: 1,
   warn: 2,
   error: 3
-}
+} as const
 
-const LOG_LEVEL_COLORS: Record<LogLevel, AnsiColor> = {
+const LOG_LEVEL_COLORS = {
   error: "red",
   warn: "yellow",
   info: "cyan",
   debug: "magenta"
-}
+} as const
 
 export type LoggerOptions = {
   level: LogLevel
@@ -40,7 +40,7 @@ export function buildLogger(options: LoggerOptions): Logger {
 
   const log = (msgLevel: LogLevel, msg: string): void => {
     if (LOG_LEVEL_PRIORITY[msgLevel] >= minPriority) {
-      const colorCode = LOG_LEVEL_COLORS[msgLevel]
+      const colorCode = LOG_LEVEL_COLORS[msgLevel] as AnsiColor
       const prefixStr = prefix ? `[${prefix}] ` : ""
       const levelStr = `[${msgLevel.toUpperCase()}]`
       stream.write(color(`${prefixStr}${levelStr} ${sanitize(msg)}`, colorCode) + "\n")
@@ -52,19 +52,5 @@ export function buildLogger(options: LoggerOptions): Logger {
     warn: (msg: string) => log("warn", msg),
     info: (msg: string) => log("info", msg),
     debug: (msg: string) => log("debug", msg)
-  }
-}
-
-/**
- * Creates a no-op logger that discards all messages.
- * Useful for testing or when logging should be disabled.
- */
-export function buildNoOpLogger(): Logger {
-  const noop = (): void => {}
-  return {
-    error: noop,
-    warn: noop,
-    info: noop,
-    debug: noop
   }
 }

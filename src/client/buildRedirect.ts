@@ -1,7 +1,7 @@
 import http from "http"
 import { isLoopbackUrl, convertLoopbackUrl } from "../loopback"
 import { RedirectResult } from "../redirect-types"
-import { type Logger, buildNoOpLogger } from "../logger"
+import { type Logger } from "../logger"
 
 const MAX_REDIRECTS = 10
 const TIMEOUT_MS = 30000
@@ -19,9 +19,9 @@ type RequestResult = {
  * servers may bind to one or the other.
  */
 export function buildRedirect(deps: {
-  logger?: Logger
+  logger: Logger
 }): (url: string) => Promise<RedirectResult> {
-  const logger = deps.logger ?? buildNoOpLogger()
+  const { logger } = deps
 
   const makeRequest = (
     url: string,

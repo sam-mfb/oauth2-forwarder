@@ -12,7 +12,7 @@ import {
   InteractiveLoginResult
 } from "../server/buildInteractiveLogin"
 import { WhitelistConfig } from "../server/whitelist"
-import { buildNoOpLogger } from "../logger"
+import { buildNoOpLogger } from "./test-logger"
 import { buildRedirect } from "../client/buildRedirect"
 
 // Disabled whitelist for e2e tests
@@ -559,11 +559,12 @@ describe("error handling", () => {
 
   it("rejects when server unavailable", async () => {
     const redirectPort = getNextPort()
-    const redirect = buildRedirect({})
+    const redirect = buildRedirect({ logger: NO_OP_LOGGER })
     const forwarder = buildCredentialForwarder({
       host: LOCALHOST,
       port: 1,
-      redirect
+      redirect,
+      logger: NO_OP_LOGGER
     })
     await expect(forwarder(createTestUrl(redirectPort))).rejects.toThrow(
       /ECONNREFUSED|connect/i
@@ -644,6 +645,7 @@ describe("timeout handling", () => {
       openBrowser: async () => {
         // Simulate user not completing the OAuth flow - do nothing
       },
+      logger: NO_OP_LOGGER,
       loginTimeoutMs: SHORT_TIMEOUT_MS
     })
 
