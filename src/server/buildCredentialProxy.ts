@@ -14,6 +14,7 @@ const DEFAULT_PENDING_REQUEST_TTL_MS = 5 * 60 * 1000
 type PendingRequest = {
   complete: (result: RedirectResult) => void
   timeoutId: ReturnType<typeof setTimeout>
+  domain: string
 }
 
 export function buildCredentialProxy(deps: {
@@ -123,7 +124,8 @@ export function buildCredentialProxy(deps: {
       // Clear the TTL timeout and remove from pending
       clearTimeout(pending.timeoutId)
       pendingRequests.delete(report.requestId)
-      logger.info(`Completed OAuth flow for request ${report.requestId} with result: ${report.result.type}`)
+      logger.info(`Completed OAuth request for ${pending.domain}`)
+      logger.debug(`Request ${report.requestId} completed with result: ${report.result.type}`)
       pending.complete(report.result)
 
       res.writeHead(200)
@@ -151,7 +153,8 @@ export function buildCredentialProxy(deps: {
             if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
               return
             }
-            logger.info(`Passthrough mode: opening URL in browser`)
+            const passthroughDomain = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+            logger.info(`Passthrough: opening ${passthroughDomain} in browser`)
             deps.openBrowser(deserializedBody.url).catch(err => {
               logger.error(`Failed to open browser: ${err}`)
             })
@@ -187,7 +190,8 @@ export function buildCredentialProxy(deps: {
           if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
             return
           }
-          logger.info(`Passthrough mode: opening URL in browser`)
+          const passthroughDomain = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+          logger.info(`Passthrough: opening ${passthroughDomain} in browser`)
           deps.openBrowser(deserializedBody.url).catch(err => {
             logger.error(`Failed to open browser: ${err}`)
           })
@@ -204,7 +208,8 @@ export function buildCredentialProxy(deps: {
       const port = portResult.value ?? 80
       logger.debug(`Using port number: ${port}`)
 
-      logger.info(`Received OAuth request, starting interactive login`)
+      const domain = getHostnameFromUrl(deserializedBody.url) ?? "unknown"
+      logger.info(`Received OAuth request for ${domain}`)
       deps
         .interactiveLogin(deserializedBody.url, port)
         .then(({ callbackUrl, requestId, complete }) => {
@@ -218,7 +223,7 @@ export function buildCredentialProxy(deps: {
             pendingRequests.delete(requestId)
           }, pendingRequestTtlMs)
 
-          pendingRequests.set(requestId, { complete, timeoutId })
+          pendingRequests.set(requestId, { complete, timeoutId, domain })
           logger.debug(
             `Stored pending request ${requestId} with TTL ${pendingRequestTtlMs}ms`
           )

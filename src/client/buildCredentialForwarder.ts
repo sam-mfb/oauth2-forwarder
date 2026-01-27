@@ -128,8 +128,7 @@ export function buildCredentialForwarder(deps: {
 
   return async url => {
     // Step 1: Send OAuth2 URL to server
-    logger.info(`Starting credential forwarding`)
-    logger.debug(`Forwarding URL: "${url}"`)
+    logger.debug(`Starting credential forwarding for URL: "${url}"`)
     const { redirectUrl, requestId } = await sendOauth2Request(url)
     logger.debug(`Received redirectUrl: "${redirectUrl}", requestId: "${requestId}"`)
 

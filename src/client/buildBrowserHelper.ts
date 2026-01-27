@@ -1,6 +1,15 @@
 import { RedirectResult } from "../redirect-types"
 import { type Logger, buildNoOpLogger } from "../logger"
 
+// Extract domain from URL for cleaner logging
+const getDomain = (url: string): string => {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return "unknown"
+  }
+}
+
 export function buildBrowserHelper(deps: {
   onExit: {
     success: () => void
@@ -18,9 +27,11 @@ export function buildBrowserHelper(deps: {
       return
     }
     logger.debug(`Received url "${requestUrl}"`)
+    const domain = getDomain(requestUrl)
     try {
       const result = await deps.credentialForwarder(requestUrl)
-      logger.info(`Credential forwarding completed with result: ${result.type}`)
+      logger.info(`Completed request for ${domain}`)
+      logger.debug(`Result type: ${result.type}`)
 
       if (result.type === "error") {
         logger.error(`Error during credential forwarding: ${result.message}`)

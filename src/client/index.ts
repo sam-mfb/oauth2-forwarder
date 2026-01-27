@@ -58,5 +58,16 @@ const browserHelper = buildBrowserHelper({
 
 const requestUrl = process.argv[2]
 
-logger.info(`Processing URL: ${requestUrl ?? "(none)"}`)
+// Extract domain for cleaner info logging
+const getDomain = (url: string | undefined): string => {
+  if (!url) return "(none)"
+  try {
+    return new URL(url).hostname
+  } catch {
+    return "(invalid URL)"
+  }
+}
+
+logger.info(`Processing request for ${getDomain(requestUrl)}`)
+logger.debug(`Full URL: ${requestUrl ?? "(none)"}`)
 browserHelper(requestUrl).catch(err => logger.error(String(err)))
