@@ -169,6 +169,68 @@ describe("buildRedirect", () => {
       const result = await redirect(`http://[::1]:${serverPort}/callback`)
       expect(result.type).toBe("success")
     })
+
+    it("should preserve original localhost Host header when connecting via IPv4", async () => {
+      let receivedHostHeader: string | undefined
+      await new Promise<void>((resolve, reject) => {
+        server = http.createServer((req, res) => {
+          receivedHostHeader = req.headers.host
+          res.statusCode = 200
+          res.end()
+        })
+        server.on("error", reject)
+        server.listen(0, "127.0.0.1", () => {
+          if (!server) {
+            reject(new Error("Server not initialized"))
+            return
+          }
+          const address = server.address()
+          if (address && typeof address === "object") {
+            serverPort = address.port
+            resolve()
+          } else {
+            reject(new Error("Failed to get server port"))
+          }
+        })
+      })
+
+      const redirect = buildRedirect({})
+      const result = await redirect(`http://localhost:${serverPort}/callback`)
+
+      expect(result.type).toBe("success")
+      expect(receivedHostHeader).toBe(`localhost:${serverPort}`)
+    })
+
+    it("should preserve original localhost Host header when falling back to IPv6", async () => {
+      let receivedHostHeader: string | undefined
+      await new Promise<void>((resolve, reject) => {
+        server = http.createServer((req, res) => {
+          receivedHostHeader = req.headers.host
+          res.statusCode = 200
+          res.end()
+        })
+        server.on("error", reject)
+        server.listen(0, "::1", () => {
+          if (!server) {
+            reject(new Error("Server not initialized"))
+            return
+          }
+          const address = server.address()
+          if (address && typeof address === "object") {
+            serverPort = address.port
+            resolve()
+          } else {
+            reject(new Error("Failed to get server port"))
+          }
+        })
+      })
+
+      const redirect = buildRedirect({})
+      const result = await redirect(`http://localhost:${serverPort}/callback`)
+
+      expect(result.type).toBe("success")
+      expect(receivedHostHeader).toBe(`localhost:${serverPort}`)
+    })
   })
 
   describe("debug output", () => {
