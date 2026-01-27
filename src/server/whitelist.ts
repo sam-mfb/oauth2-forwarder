@@ -1,6 +1,10 @@
 import fs from "fs"
 import path from "path"
 import os from "os"
+import { getDomain } from "../url-utils"
+
+// Re-export for backward compatibility
+export { getDomain }
 
 const CONFIG_DIR = ".oauth2-forwarder"
 const WHITELIST_FILE = "whitelist.json"
@@ -67,22 +71,11 @@ export function isUrlAllowed(url: string, config: WhitelistConfig): boolean {
     return true
   }
 
-  try {
-    const parsedUrl = new URL(url)
-    const hostname = parsedUrl.hostname.toLowerCase()
-    return config.domains.has(hostname)
-  } catch {
+  const hostname = getDomain(url)
+  if (!hostname) {
     // If URL is invalid, reject it
     return false
   }
-}
-
-export function getHostnameFromUrl(url: string): string | null {
-  try {
-    const parsedUrl = new URL(url)
-    return parsedUrl.hostname.toLowerCase()
-  } catch {
-    return null
-  }
+  return config.domains.has(hostname)
 }
 

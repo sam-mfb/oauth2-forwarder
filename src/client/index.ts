@@ -1,7 +1,8 @@
 import { getVersion } from "../version"
 import { EnvKey } from "../env"
-import { buildOutputWriter } from "../output"
+import { buildLogger, type LogLevel } from "../logger"
 import { Result } from "../result"
+import { getDomain } from "../url-utils"
 import { buildBrowserHelper } from "./buildBrowserHelper"
 import { buildCredentialForwarder } from "./buildCredentialForwarder"
 import { buildRedirect } from "./buildRedirect"
@@ -14,35 +15,33 @@ if (process.argv.includes("--version") || process.argv.includes("-v")) {
 
 const DEBUG = process.env[EnvKey.DEBUG]
 
-const errorOutput = buildOutputWriter({ color: "red", stream: process.stderr })
+// Set log level based on DEBUG env variable
+const logLevel: LogLevel = DEBUG ? "debug" : "info"
+const logger = buildLogger({ level: logLevel, stream: process.stderr, prefix: "client" })
 
 const serverInfoRaw = process.env[EnvKey.SERVER]
 if (!serverInfoRaw) {
-  errorOutput(`The environmental variable ${[EnvKey.SERVER]} was not defined`)
+  logger.error(`The environmental variable ${[EnvKey.SERVER]} was not defined`)
   process.exit(1)
 }
 
 const serverInfoResult = parseServerInfo(serverInfoRaw)
 if (Result.isFailure(serverInfoResult)) {
-  errorOutput(`Invalid server info: "${serverInfoResult.error.message}"`)
+  logger.error(`Invalid server info: "${serverInfoResult.error.message}"`)
   process.exit(1)
 }
 
 const serverInfo = serverInfoResult.value
 
 const redirect = buildRedirect({
-  debugger: DEBUG
-    ? buildOutputWriter({ color: "yellow", stream: process.stderr })
-    : undefined
+  logger
 })
 
 const credentialForwarder = buildCredentialForwarder({
   host: serverInfo.host,
   port: serverInfo.port,
   redirect: redirect,
-  debugger: DEBUG
-    ? buildOutputWriter({ color: "cyan", stream: process.stderr })
-    : undefined
+  logger
 })
 
 const browserHelper = buildBrowserHelper({
@@ -55,11 +54,11 @@ const browserHelper = buildBrowserHelper({
     }
   },
   credentialForwarder: credentialForwarder,
-  debugger: DEBUG
-    ? buildOutputWriter({ color: "green", stream: process.stderr })
-    : undefined
+  logger
 })
 
 const requestUrl = process.argv[2]
 
-browserHelper(requestUrl).catch(errorOutput)
+logger.info(`Processing request for ${requestUrl ? getDomain(requestUrl) ?? "(invalid URL)" : "(none)"}`)
+logger.debug(`Full URL: ${requestUrl ?? "(none)"}`)
+browserHelper(requestUrl).catch(err => logger.error(String(err)))

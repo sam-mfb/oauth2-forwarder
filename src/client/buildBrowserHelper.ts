@@ -1,4 +1,6 @@
 import { RedirectResult } from "../redirect-types"
+import { type Logger } from "../logger"
+import { getDomain } from "../url-utils"
 
 export function buildBrowserHelper(deps: {
   onExit: {
@@ -6,32 +8,33 @@ export function buildBrowserHelper(deps: {
     failure: () => void
   }
   credentialForwarder: (url: string) => Promise<RedirectResult>
-  debugger?: (str: string) => void
+  logger: Logger
 }): (requestUrl: string | undefined) => Promise<void> {
   return async requestUrl => {
-    const debug = deps.debugger ? deps.debugger : () => {}
+    const { logger } = deps
 
     if (!requestUrl) {
-      debug("No url argument present")
+      logger.warn("No URL argument present")
       deps.onExit.failure()
       return
     }
-    debug(`Received url "${requestUrl}"`)
+    logger.debug(`Received url "${requestUrl}"`)
+    const domain = getDomain(requestUrl) ?? "unknown"
     try {
       const result = await deps.credentialForwarder(requestUrl)
-      debug(`Credential forwarding completed with result type: ${result.type}`)
+      logger.info(`Completed request for ${domain}`)
+      logger.debug(`Result type: ${result.type}`)
 
       if (result.type === "error") {
-        debug(`Error during credential forwarding: ${result.message}`)
+        logger.error(`Error during credential forwarding: ${result.message}`)
         deps.onExit.failure()
         return
       }
 
-      debug(`Exiting on success...`)
+      logger.debug("Exiting on success")
       deps.onExit.success()
     } catch (err) {
-      debug(`Browser helper error "${err}"`)
-      debug(`Exiting on failure...`)
+      logger.error(`Browser helper error: ${err}`)
       deps.onExit.failure()
     }
   }

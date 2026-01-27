@@ -1,5 +1,6 @@
 import http from "http"
 import { buildRedirect } from "../buildRedirect"
+import { buildTestLogger, buildNoOpLogger } from "../../__tests__/test-logger"
 
 describe("buildRedirect", () => {
   let server: http.Server | null = null
@@ -51,7 +52,7 @@ describe("buildRedirect", () => {
   describe("basic functionality", () => {
     it("should return success with 200 response", async () => {
       serverPort = await createServer("127.0.0.1", 200)
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("success")
     })
@@ -59,7 +60,7 @@ describe("buildRedirect", () => {
     it("should return success with body when 200 response has body", async () => {
       const body = "<html>Success!</html>"
       serverPort = await createServer("127.0.0.1", 200, { body })
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("success")
       if (result.type === "success") {
@@ -72,7 +73,7 @@ describe("buildRedirect", () => {
       serverPort = await createServer("127.0.0.1", 302, {
         location: externalUrl
       })
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("redirect")
       if (result.type === "redirect") {
@@ -85,7 +86,7 @@ describe("buildRedirect", () => {
       serverPort = await createServer("127.0.0.1", 301, {
         location: externalUrl
       })
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("redirect")
       if (result.type === "redirect") {
@@ -95,7 +96,7 @@ describe("buildRedirect", () => {
 
     it("should return error with other status codes", async () => {
       serverPort = await createServer("127.0.0.1", 404)
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("error")
       if (result.type === "error") {
@@ -105,7 +106,7 @@ describe("buildRedirect", () => {
 
     it("should return error for 302 without Location header", async () => {
       serverPort = await createServer("127.0.0.1", 302)
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("error")
       if (result.type === "error") {
@@ -117,7 +118,7 @@ describe("buildRedirect", () => {
   describe("IPv4/IPv6 fallback behavior", () => {
     it("should succeed when server listens on IPv4 (127.0.0.1)", async () => {
       serverPort = await createServer("127.0.0.1", 200)
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
 
       // Should work with localhost (will try IPv4 first)
       const result = await redirect(`http://localhost:${serverPort}/callback`)
@@ -127,23 +128,21 @@ describe("buildRedirect", () => {
     it("should try IPv6 when IPv4 connection is refused", async () => {
       // Create server only on IPv6
       serverPort = await createServer("::1", 200)
-      const debugMessages: string[] = []
-      const redirect = buildRedirect({
-        debugger: msg => debugMessages.push(msg)
-      })
+      const { logger, messages } = buildTestLogger()
+      const redirect = buildRedirect({ logger })
 
       // Should fail on IPv4, then succeed on IPv6
       const result = await redirect(`http://localhost:${serverPort}/callback`)
       expect(result.type).toBe("success")
 
       // Verify it tried IPv4 first, then IPv6
-      expect(debugMessages.some(m => m.includes("Trying IPv4"))).toBe(true)
-      expect(debugMessages.some(m => m.includes("trying IPv6"))).toBe(true)
+      expect(messages.some(m => m.includes("Trying IPv4"))).toBe(true)
+      expect(messages.some(m => m.includes("trying IPv6"))).toBe(true)
     })
 
     it("should return error when both IPv4 and IPv6 fail", async () => {
       // No server running - both should fail
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
 
       const result = await redirect("http://localhost:59999/callback")
       expect(result.type).toBe("error")
@@ -156,7 +155,7 @@ describe("buildRedirect", () => {
 
     it("should handle explicit 127.0.0.1 URLs", async () => {
       serverPort = await createServer("127.0.0.1", 200)
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
 
       const result = await redirect(`http://127.0.0.1:${serverPort}/callback`)
       expect(result.type).toBe("success")
@@ -164,7 +163,7 @@ describe("buildRedirect", () => {
 
     it("should handle explicit [::1] URLs", async () => {
       serverPort = await createServer("::1", 200)
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
 
       const result = await redirect(`http://[::1]:${serverPort}/callback`)
       expect(result.type).toBe("success")
@@ -194,7 +193,7 @@ describe("buildRedirect", () => {
         })
       })
 
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://localhost:${serverPort}/callback`)
 
       expect(result.type).toBe("success")
@@ -225,7 +224,7 @@ describe("buildRedirect", () => {
         })
       })
 
-      const redirect = buildRedirect({})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
       const result = await redirect(`http://localhost:${serverPort}/callback`)
 
       expect(result.type).toBe("success")
@@ -234,17 +233,15 @@ describe("buildRedirect", () => {
   })
 
   describe("debug output", () => {
-    it("should call debugger with request details", async () => {
+    it("should call logger with request details", async () => {
       serverPort = await createServer("127.0.0.1", 200)
-      const debugMessages: string[] = []
-      const redirect = buildRedirect({
-        debugger: msg => debugMessages.push(msg)
-      })
+      const { logger, messages } = buildTestLogger()
+      const redirect = buildRedirect({ logger })
 
       await redirect(`http://127.0.0.1:${serverPort}/callback`)
 
-      expect(debugMessages.length).toBeGreaterThan(0)
-      expect(debugMessages.some(m => m.includes("GET request"))).toBe(true)
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages.some(m => m.includes("GET request"))).toBe(true)
     })
   })
 })
