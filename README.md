@@ -101,7 +101,7 @@ Run your oauth2 CLI app as normal.
 
 Notes:
 
-- You can turn on more verbose debugging information by setting the environmental variable `OAUTH2_FORWARDER_DEBUG` to `true`. The logging on the client side is saved in `/tmp/oauth2-forwarder.log`. On the server side it is output to the console.
+- You can turn on more verbose debugging information by setting the environmental variable `OAUTH2_FORWARDER_DEBUG` to `true`. See the [Debugging](#debugging) section for log file locations.
 
 ### Using a Dockerfile
 
@@ -142,8 +142,24 @@ You can enable debugging on either the server or the client by setting the envir
 
 ### Log Locations
 
-- **Server side**: Debug output is written to the console (stdout).
-- **Client side**: Debug output is saved to `/tmp/oauth2-forwarder.log`.
+**Server:**
+- When running in a terminal (foreground): Logs are written to the console with colored output
+- When running in background (no TTY): Logs are written to a file with timestamps
+
+**Client:**
+- Always writes to a log file (since it runs in background via the browser script)
+
+Log file locations vary by operating system:
+
+| OS | Log Directory |
+|----|---------------|
+| Linux | `~/.local/state/oauth2-forwarder/` |
+| macOS | `~/Library/Logs/oauth2-forwarder/` |
+| Windows | `%LOCALAPPDATA%\oauth2-forwarder\logs\` |
+
+Log files:
+- Server: `o2f-server.log` (rotates on startup, keeps 5 files)
+- Client: `o2f-client.log` (rotates when >5MB, keeps 3 files)
 
 ## Passthrough Mode
 
@@ -172,12 +188,19 @@ You can restrict which OAuth2 provider domains the server will accept by creatin
 
 This applies to both OAuth2 URLs and passthrough URLs (when passthrough mode is enabled).
 
-### Whitelist File Location
+### Config File Location
 
-The whitelist is stored at:
-```
-~/.oauth2-forwarder/whitelist.json
-```
+Config file locations vary by operating system:
+
+| OS | Config Directory |
+|----|------------------|
+| Linux | `~/.config/oauth2-forwarder/` |
+| macOS | `~/Library/Application Support/oauth2-forwarder/` |
+| Windows | `%LOCALAPPDATA%\oauth2-forwarder\` |
+
+The whitelist file is named `whitelist.json` within the config directory.
+
+> **Note:** The legacy location `~/.oauth2-forwarder/` is still supported for backwards compatibility, but will show a deprecation warning. Please migrate to the OS-standard location.
 
 ### File Format
 
@@ -206,11 +229,11 @@ The whitelist file is a JSON file with a `domains` array:
 
 ### Example
 
-To only allow Microsoft and Google OAuth:
+To only allow Microsoft and Google OAuth (Linux example):
 
 ```bash
-mkdir -p ~/.oauth2-forwarder
-cat > ~/.oauth2-forwarder/whitelist.json << 'EOF'
+mkdir -p ~/.config/oauth2-forwarder
+cat > ~/.config/oauth2-forwarder/whitelist.json << 'EOF'
 {
   "domains": [
     "login.microsoftonline.com",
@@ -236,7 +259,7 @@ Both `o2f-server` and `o2f-client` support the following command line options:
 Example:
 ```bash
 o2f-server --version
-# Output: o2f-server v1.3.1
+# Output: o2f-server v1.4.2
 ```
 
 ## Security
