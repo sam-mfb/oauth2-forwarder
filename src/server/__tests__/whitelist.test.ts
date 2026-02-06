@@ -1,5 +1,4 @@
 import fs from "fs"
-import os from "os"
 import { vi, type Mocked } from "vitest"
 import {
   loadWhitelist,
@@ -8,17 +7,29 @@ import {
   WhitelistConfig
 } from "../whitelist"
 
-// Mock fs and os modules
+// Mock fs and paths modules
 vi.mock("fs")
-vi.mock("os")
+vi.mock("../../paths", () => ({
+  resolveConfigFile: vi.fn(),
+  getPreferredConfigDescription: vi.fn()
+}))
+
+import { resolveConfigFile, getPreferredConfigDescription } from "../../paths"
 
 const mockFs = fs as Mocked<typeof fs>
-const mockOs = os as Mocked<typeof os>
+const mockResolveConfigFile = resolveConfigFile as Mocked<typeof resolveConfigFile>
+const mockGetPreferredConfigDescription = getPreferredConfigDescription as Mocked<
+  typeof getPreferredConfigDescription
+>
 
 describe("whitelist", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockOs.homedir.mockReturnValue("/home/testuser")
+    mockResolveConfigFile.mockReturnValue({
+      path: "/home/testuser/.oauth2-forwarder/whitelist.json",
+      isLegacy: false
+    })
+    mockGetPreferredConfigDescription.mockReturnValue("~/.config/oauth2-forwarder/")
   })
 
   describe("loadWhitelist", () => {
@@ -123,14 +134,64 @@ describe("whitelist", () => {
       expect(config.enabled).toBe(false)
       expect(config.domains.size).toBe(0)
     })
+
+    it("sets usingLegacyPath to true when config is in legacy location", () => {
+      mockResolveConfigFile.mockReturnValue({
+        path: "/home/testuser/.oauth2-forwarder/whitelist.json",
+        isLegacy: true
+      })
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ domains: ["example.com"] })
+      )
+
+      const config = loadWhitelist()
+
+      expect(config.usingLegacyPath).toBe(true)
+      expect(config.preferredLocation).toBe("~/.config/oauth2-forwarder/")
+    })
+
+    it("sets usingLegacyPath to false when config is in preferred location", () => {
+      mockResolveConfigFile.mockReturnValue({
+        path: "/home/testuser/.config/oauth2-forwarder/whitelist.json",
+        isLegacy: false
+      })
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ domains: ["example.com"] })
+      )
+
+      const config = loadWhitelist()
+
+      expect(config.usingLegacyPath).toBe(false)
+    })
+
+    it("includes preferredLocation in config", () => {
+      mockGetPreferredConfigDescription.mockReturnValue(
+        "~/Library/Application Support/oauth2-forwarder/"
+      )
+      mockFs.existsSync.mockReturnValue(false)
+
+      const config = loadWhitelist()
+
+      expect(config.preferredLocation).toBe(
+        "~/Library/Application Support/oauth2-forwarder/"
+      )
+    })
   })
 
   describe("isUrlAllowed", () => {
+    const baseConfig = {
+      configPath: "/test/path",
+      usingLegacyPath: false,
+      preferredLocation: "~/.config/oauth2-forwarder/"
+    }
+
     it("allows all URLs when whitelist is disabled", () => {
       const config: WhitelistConfig = {
+        ...baseConfig,
         enabled: false,
-        domains: new Set(),
-        configPath: "/test/path"
+        domains: new Set()
       }
 
       expect(isUrlAllowed("https://any-domain.com/oauth", config)).toBe(true)
@@ -139,9 +200,9 @@ describe("whitelist", () => {
 
     it("allows URLs with whitelisted domains", () => {
       const config: WhitelistConfig = {
+        ...baseConfig,
         enabled: true,
-        domains: new Set(["login.microsoftonline.com", "accounts.google.com"]),
-        configPath: "/test/path"
+        domains: new Set(["login.microsoftonline.com", "accounts.google.com"])
       }
 
       expect(
@@ -157,9 +218,9 @@ describe("whitelist", () => {
 
     it("rejects URLs with non-whitelisted domains", () => {
       const config: WhitelistConfig = {
+        ...baseConfig,
         enabled: true,
-        domains: new Set(["login.microsoftonline.com"]),
-        configPath: "/test/path"
+        domains: new Set(["login.microsoftonline.com"])
       }
 
       expect(isUrlAllowed("https://evil.com/oauth", config)).toBe(false)
@@ -170,9 +231,9 @@ describe("whitelist", () => {
 
     it("performs case-insensitive matching", () => {
       const config: WhitelistConfig = {
+        ...baseConfig,
         enabled: true,
-        domains: new Set(["login.microsoftonline.com"]),
-        configPath: "/test/path"
+        domains: new Set(["login.microsoftonline.com"])
       }
 
       expect(
@@ -185,9 +246,9 @@ describe("whitelist", () => {
 
     it("rejects invalid URLs", () => {
       const config: WhitelistConfig = {
+        ...baseConfig,
         enabled: true,
-        domains: new Set(["login.microsoftonline.com"]),
-        configPath: "/test/path"
+        domains: new Set(["login.microsoftonline.com"])
       }
 
       expect(isUrlAllowed("not-a-url", config)).toBe(false)
@@ -196,9 +257,9 @@ describe("whitelist", () => {
 
     it("matches exact domain only (no subdomain matching)", () => {
       const config: WhitelistConfig = {
+        ...baseConfig,
         enabled: true,
-        domains: new Set(["microsoftonline.com"]),
-        configPath: "/test/path"
+        domains: new Set(["microsoftonline.com"])
       }
 
       // Subdomain should NOT match

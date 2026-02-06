@@ -26,8 +26,14 @@ const LOG_LEVEL_COLORS = {
 
 export type LoggerOptions = {
   level: LogLevel
-  stream?: NodeJS.WriteStream
+  stream?: NodeJS.WritableStream
   prefix?: string
+  /** When true, disables ANSI color codes and adds timestamps. Use for file output. */
+  useFileFormat?: boolean
+}
+
+function formatTimestamp(): string {
+  return new Date().toISOString()
 }
 
 /**
@@ -35,15 +41,27 @@ export type LoggerOptions = {
  * Messages at or above the configured level will be output.
  */
 export function buildLogger(options: LoggerOptions): Logger {
-  const { level, stream = process.stderr, prefix = "" } = options
+  const { level, stream = process.stderr, prefix = "", useFileFormat = false } = options
   const minPriority = LOG_LEVEL_PRIORITY[level]
 
   const log = (msgLevel: LogLevel, msg: string): void => {
     if (LOG_LEVEL_PRIORITY[msgLevel] >= minPriority) {
-      const colorCode = LOG_LEVEL_COLORS[msgLevel] as AnsiColor
       const prefixStr = prefix ? `[${prefix}] ` : ""
       const levelStr = `[${msgLevel.toUpperCase()}]`
-      stream.write(color(`${prefixStr}${levelStr} ${sanitize(msg)}`, colorCode) + "\n")
+      const sanitizedMsg = sanitize(msg)
+
+      let output: string
+      if (useFileFormat) {
+        // File format: timestamp, no colors
+        const timestamp = formatTimestamp()
+        output = `${timestamp} ${prefixStr}${levelStr} ${sanitizedMsg}\n`
+      } else {
+        // Console format: colored, no timestamp
+        const colorCode = LOG_LEVEL_COLORS[msgLevel] as AnsiColor
+        output = color(`${prefixStr}${levelStr} ${sanitizedMsg}`, colorCode) + "\n"
+      }
+
+      stream.write(output)
     }
   }
 
