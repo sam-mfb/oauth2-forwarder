@@ -7,7 +7,7 @@ type Oauth2AuthCodeRequestBaseParams = {
   client_id: string
   response_type: string
   redirect_uri: string
-  scope: string
+  scope?: string
   response_mode?: "query" | "fragment" | "form_post"
   state?: string
   prompt?: "login" | "none" | "consent" | "select_account"

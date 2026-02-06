@@ -7,7 +7,7 @@ export function parseOauth2Url(
   if (!url) {
     return Result.failure(new Error("Url parameter was undefined"))
   }
-  const requiredParams = ["client_id", "response_type", "redirect_uri", "scope"]
+  const requiredParams = ["client_id", "response_type", "redirect_uri"]
 
   let urlObj: URL
   try {
@@ -74,7 +74,7 @@ export function parseOauth2Url(
         "client_id": params.client_id as string,
         "response_type": params.response_type as string,
         "redirect_uri": params.redirect_uri as string,
-        "scope": params.scope as string,
+        "scope": params.scope,
         "response_mode": params.response_mode as
           | "query"
           | "fragment"
@@ -103,7 +103,7 @@ export function parseOauth2Url(
         "client_id": params.client_id as string,
         "response_type": params.response_type as string,
         "redirect_uri": params.redirect_uri as string,
-        "scope": params.scope as string,
+        "scope": params.scope,
         "response_mode": params.response_mode as
           | "query"
           | "fragment"
