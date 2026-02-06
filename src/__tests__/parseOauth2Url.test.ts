@@ -86,6 +86,18 @@ describe("parseOauth2Url", () => {
     }
   })
 
+  it("successfully parses a url without scope parameter", () => {
+    const url =
+      "https://login.example.com/oauth?client_id=test&redirect_uri=http://localhost:3000&response_type=code&code_challenge=abc&code_challenge_method=S256"
+
+    const parseResult = parseOauth2Url(url)
+
+    expect(Result.isSuccess(parseResult)).toBe(true)
+    if (Result.isSuccess(parseResult)) {
+      expect(parseResult.value.scope).toBeUndefined()
+    }
+  })
+
   it("successfully parses a url without PKCE parameters", () => {
     const url =
       "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code"
