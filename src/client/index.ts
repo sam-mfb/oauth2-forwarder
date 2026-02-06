@@ -1,6 +1,8 @@
 import { getVersion } from "../version"
 import { EnvKey } from "../env"
 import { buildLogger, type LogLevel } from "../logger"
+import { getLogFilePath } from "../paths"
+import { rotateIfNeeded, createLogFileStream } from "../logRotation"
 import { Result } from "../result"
 import { getDomain } from "../url-utils"
 import { buildBrowserHelper } from "./buildBrowserHelper"
@@ -17,7 +19,19 @@ const DEBUG = process.env[EnvKey.DEBUG]
 
 // Set log level based on DEBUG env variable
 const logLevel: LogLevel = DEBUG ? "debug" : "info"
-const logger = buildLogger({ level: logLevel, stream: process.stderr, prefix: "client" })
+
+// Client always logs to file (runs in background via shell wrapper)
+const logFilePath = getLogFilePath("client")
+// Rotate if file exceeds 5MB, keep 3 rotated files
+rotateIfNeeded(logFilePath, 5 * 1024 * 1024, 3)
+const logStream = createLogFileStream(logFilePath)
+
+const logger = buildLogger({
+  level: logLevel,
+  stream: logStream,
+  prefix: "client",
+  useFileFormat: true
+})
 
 const serverInfoRaw = process.env[EnvKey.SERVER]
 if (!serverInfoRaw) {

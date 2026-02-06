@@ -2,6 +2,8 @@ import { getVersion } from "../version"
 import { EnvKey } from "../env"
 import { buildOutputWriter } from "../output"
 import { buildLogger, type LogLevel } from "../logger"
+import { getLogFilePath } from "../paths"
+import { rotateOnLaunch, createLogFileStream } from "../logRotation"
 import { buildInteractiveLogin } from "./buildInteractiveLogin"
 import { buildCredentialProxy } from "./buildCredentialProxy"
 import { findAvailablePort } from "./findAvailablePort"
@@ -30,9 +32,34 @@ if (loginTimeoutEnv) {
 
 // Set log level based on DEBUG env variable
 const logLevel: LogLevel = DEBUG ? "debug" : "info"
-const logger = buildLogger({ level: logLevel, stream: process.stdout, prefix: "server" })
 
-// User-facing output (not structured logs)
+// Detect if running in foreground (interactive terminal)
+const isForeground = process.stdout.isTTY === true
+
+// Set up logging based on foreground/background mode
+let logStream: NodeJS.WritableStream
+let useFileFormat: boolean
+
+if (isForeground) {
+  // Foreground: log to console with colors
+  logStream = process.stdout
+  useFileFormat = false
+} else {
+  // Background: log to file with timestamps, no colors
+  const logFilePath = getLogFilePath("server")
+  rotateOnLaunch(logFilePath, 5)
+  logStream = createLogFileStream(logFilePath)
+  useFileFormat = true
+}
+
+const logger = buildLogger({
+  level: logLevel,
+  stream: logStream,
+  prefix: "server",
+  useFileFormat
+})
+
+// User-facing output (not structured logs) - only used in foreground mode
 const instructions = buildOutputWriter({
   color: "yellow",
   stream: process.stdout
@@ -76,6 +103,12 @@ const interactiveLogin = buildInteractiveLogin({
     logger.info(
       `URL whitelist enabled with ${whitelist.domains.size} domain(s): ${Array.from(whitelist.domains).join(", ")}`
     )
+    // Warn if using deprecated legacy config location
+    if (whitelist.usingLegacyPath) {
+      logger.warn(
+        `Config location ~/.oauth2-forwarder/ is deprecated. Please move your config to ${whitelist.preferredLocation}`
+      )
+    }
   } else {
     logger.info(`URL whitelist disabled (no whitelist file at ${whitelist.configPath})`)
   }
@@ -97,15 +130,19 @@ const interactiveLogin = buildInteractiveLogin({
       "Passthrough mode enabled: malformed URLs will be opened in browser"
     )
   }
-  instructions(`Run the following command in your docker container:\n`)
-  configOutput(`    export ${EnvKey.SERVER}="${DOCKER_HOST_IP}:${port}"\n`)
-  instructions(
-    `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container.\n`
-  )
-  instructions(`If you installed via npm (recommended):\n`)
-  configOutput(`    export BROWSER=o2f-browser\n`)
-  instructions(`If you installed manually to the default location:\n`)
-  configOutput(`    export BROWSER=~/o2f/browser.sh\n`)
+
+  // Only show interactive instructions in foreground mode
+  if (isForeground) {
+    instructions(`Run the following command in your docker container:\n`)
+    configOutput(`    export ${EnvKey.SERVER}="${DOCKER_HOST_IP}:${port}"\n`)
+    instructions(
+      `\nIn addition, you need to set the BROWSER env variable to point to the client script in the docker container.\n`
+    )
+    instructions(`If you installed via npm (recommended):\n`)
+    configOutput(`    export BROWSER=o2f-browser\n`)
+    instructions(`If you installed manually to the default location:\n`)
+    configOutput(`    export BROWSER=~/o2f/browser.sh\n`)
+  }
 
   try {
     // note even though this is async it only awaits the start of the server--execution will proceed

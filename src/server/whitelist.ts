@@ -1,36 +1,37 @@
 import fs from "fs"
-import path from "path"
-import os from "os"
 import { getDomain } from "../url-utils"
+import { resolveConfigFile, getPreferredConfigDescription } from "../paths"
 
 // Re-export for backward compatibility
 export { getDomain }
 
-const CONFIG_DIR = ".oauth2-forwarder"
 const WHITELIST_FILE = "whitelist.json"
 
 export type WhitelistConfig = {
   enabled: boolean
   domains: Set<string>
   configPath: string
+  /** True if using deprecated ~/.oauth2-forwarder/ location */
+  usingLegacyPath: boolean
+  /** Human-readable description of the preferred config location */
+  preferredLocation: string
 }
 
 type WhitelistFile = {
   domains: string[]
 }
 
-function getConfigPath(): string {
-  return path.join(os.homedir(), CONFIG_DIR, WHITELIST_FILE)
-}
-
 export function loadWhitelist(): WhitelistConfig {
-  const configPath = getConfigPath()
+  const { path: configPath, isLegacy } = resolveConfigFile(WHITELIST_FILE)
+  const preferredLocation = getPreferredConfigDescription()
 
   if (!fs.existsSync(configPath)) {
     return {
       enabled: false,
       domains: new Set(),
-      configPath
+      configPath,
+      usingLegacyPath: false,
+      preferredLocation
     }
   }
 
@@ -42,7 +43,9 @@ export function loadWhitelist(): WhitelistConfig {
       return {
         enabled: false,
         domains: new Set(),
-        configPath
+        configPath,
+        usingLegacyPath: isLegacy,
+        preferredLocation
       }
     }
 
@@ -54,14 +57,18 @@ export function loadWhitelist(): WhitelistConfig {
     return {
       enabled: normalizedDomains.size > 0,
       domains: normalizedDomains,
-      configPath
+      configPath,
+      usingLegacyPath: isLegacy,
+      preferredLocation
     }
   } catch {
     // If file is malformed, treat as disabled
     return {
       enabled: false,
       domains: new Set(),
-      configPath
+      configPath,
+      usingLegacyPath: isLegacy,
+      preferredLocation
     }
   }
 }
