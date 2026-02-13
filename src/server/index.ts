@@ -122,9 +122,14 @@ const interactiveLogin = buildInteractiveLogin({
         )
         break
       case "file-not-found":
-      default:
         logger.info(
           `URL whitelist disabled (no config file found at ${whitelist.configPath})`
+        )
+        break
+      case undefined:
+      default:
+        logger.info(
+          `URL whitelist disabled (reason not specified for ${whitelist.configPath})`
         )
         break
     }

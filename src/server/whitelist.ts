@@ -70,7 +70,8 @@ export function loadWhitelist(): WhitelistConfig {
       domains: normalizedDomains,
       configPath,
       usingLegacyPath: isLegacy,
-      preferredLocation
+      preferredLocation,
+      disabledReason: normalizedDomains.size > 0 ? undefined : "empty-domains"
     }
   } catch (err) {
     return {

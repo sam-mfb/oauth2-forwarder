@@ -114,6 +114,21 @@ describe("whitelist", () => {
       expect(config.domains.size).toBe(2)
     })
 
+    it("disables config when all domains are empty or whitespace", () => {
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          domains: ["", "  ", "   "]
+        })
+      )
+
+      const config = loadWhitelist()
+
+      expect(config.enabled).toBe(false)
+      expect(config.domains.size).toBe(0)
+      expect(config.disabledReason).toBe("empty-domains")
+    })
+
     it("returns disabled config with parse error when file contains invalid JSON", () => {
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue("not valid json")
