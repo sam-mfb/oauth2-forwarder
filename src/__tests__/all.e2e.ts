@@ -19,7 +19,9 @@ import { buildRedirect } from "../client/buildRedirect"
 const DISABLED_WHITELIST: WhitelistConfig = {
   enabled: false,
   domains: new Set(),
-  configPath: ""
+  configPath: "",
+  usingLegacyPath: false,
+  preferredLocation: ""
 }
 
 // No-op logger for e2e tests
@@ -352,7 +354,9 @@ describe("URL whitelist", () => {
   const ENABLED_WHITELIST: WhitelistConfig = {
     enabled: true,
     domains: new Set([WHITELISTED_DOMAIN]),
-    configPath: ""
+    configPath: "",
+    usingLegacyPath: false,
+    preferredLocation: ""
   }
 
   it("allows OAuth2 URLs with whitelisted domain", async () => {

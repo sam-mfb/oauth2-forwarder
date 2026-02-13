@@ -17,7 +17,9 @@ export const LOCALHOST = "127.0.0.1"
 const DISABLED_WHITELIST: WhitelistConfig = {
   enabled: false,
   domains: new Set(),
-  configPath: ""
+  configPath: "",
+  usingLegacyPath: false,
+  preferredLocation: ""
 }
 
 // No-op logger for e2e tests
