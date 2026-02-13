@@ -1,5 +1,5 @@
 import fs from "fs"
-import { vi, type Mocked } from "vitest"
+import { vi } from "vitest"
 import {
   loadWhitelist,
   isUrlAllowed,
@@ -16,11 +16,9 @@ vi.mock("../../paths", () => ({
 
 import { resolveConfigFile, getPreferredConfigDescription } from "../../paths"
 
-const mockFs = fs as Mocked<typeof fs>
-const mockResolveConfigFile = resolveConfigFile as Mocked<typeof resolveConfigFile>
-const mockGetPreferredConfigDescription = getPreferredConfigDescription as Mocked<
-  typeof getPreferredConfigDescription
->
+const mockFs = vi.mocked(fs)
+const mockResolveConfigFile = vi.mocked(resolveConfigFile)
+const mockGetPreferredConfigDescription = vi.mocked(getPreferredConfigDescription)
 
 describe("whitelist", () => {
   beforeEach(() => {
