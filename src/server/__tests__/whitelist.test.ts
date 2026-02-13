@@ -43,6 +43,7 @@ describe("whitelist", () => {
       expect(config.configPath).toBe(
         "/home/testuser/.oauth2-forwarder/whitelist.json"
       )
+      expect(config.disabledReason).toBe("file-not-found")
     })
 
     it("returns disabled config when file has empty domains array", () => {
@@ -53,6 +54,7 @@ describe("whitelist", () => {
 
       expect(config.enabled).toBe(false)
       expect(config.domains.size).toBe(0)
+      expect(config.disabledReason).toBe("empty-domains")
     })
 
     it("returns enabled config with domains from file", () => {
@@ -69,6 +71,7 @@ describe("whitelist", () => {
       expect(config.domains.size).toBe(2)
       expect(config.domains.has("login.microsoftonline.com")).toBe(true)
       expect(config.domains.has("accounts.google.com")).toBe(true)
+      expect(config.disabledReason).toBeUndefined()
     })
 
     it("normalizes domains to lowercase", () => {
@@ -113,7 +116,7 @@ describe("whitelist", () => {
       expect(config.domains.size).toBe(2)
     })
 
-    it("returns disabled config when file contains invalid JSON", () => {
+    it("returns disabled config with parse error when file contains invalid JSON", () => {
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue("not valid json")
 
@@ -121,6 +124,8 @@ describe("whitelist", () => {
 
       expect(config.enabled).toBe(false)
       expect(config.domains.size).toBe(0)
+      expect(config.disabledReason).toBe("parse-error")
+      expect(config.parseError).toBeDefined()
     })
 
     it("returns disabled config when domains is not an array", () => {
@@ -133,6 +138,7 @@ describe("whitelist", () => {
 
       expect(config.enabled).toBe(false)
       expect(config.domains.size).toBe(0)
+      expect(config.disabledReason).toBe("empty-domains")
     })
 
     it("sets usingLegacyPath to true when config is in legacy location", () => {
@@ -177,6 +183,7 @@ describe("whitelist", () => {
       expect(config.preferredLocation).toBe(
         "~/Library/Application Support/oauth2-forwarder/"
       )
+      expect(config.disabledReason).toBe("file-not-found")
     })
   })
 

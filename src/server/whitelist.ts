@@ -7,6 +7,11 @@ export { getDomain }
 
 const WHITELIST_FILE = "whitelist.json"
 
+export type WhitelistDisabledReason =
+  | "file-not-found"
+  | "empty-domains"
+  | "parse-error"
+
 export type WhitelistConfig = {
   enabled: boolean
   domains: Set<string>
@@ -15,6 +20,10 @@ export type WhitelistConfig = {
   usingLegacyPath: boolean
   /** Human-readable description of the preferred config location */
   preferredLocation: string
+  /** Why the whitelist is disabled (only set when enabled is false) */
+  disabledReason?: WhitelistDisabledReason
+  /** The parse error message if disabledReason is "parse-error" */
+  parseError?: string
 }
 
 type WhitelistFile = {
@@ -31,7 +40,8 @@ export function loadWhitelist(): WhitelistConfig {
       domains: new Set(),
       configPath,
       usingLegacyPath: false,
-      preferredLocation
+      preferredLocation,
+      disabledReason: "file-not-found"
     }
   }
 
@@ -45,7 +55,8 @@ export function loadWhitelist(): WhitelistConfig {
         domains: new Set(),
         configPath,
         usingLegacyPath: isLegacy,
-        preferredLocation
+        preferredLocation,
+        disabledReason: "empty-domains"
       }
     }
 
@@ -61,14 +72,15 @@ export function loadWhitelist(): WhitelistConfig {
       usingLegacyPath: isLegacy,
       preferredLocation
     }
-  } catch {
-    // If file is malformed, treat as disabled
+  } catch (err) {
     return {
       enabled: false,
       domains: new Set(),
       configPath,
       usingLegacyPath: isLegacy,
-      preferredLocation
+      preferredLocation,
+      disabledReason: "parse-error",
+      parseError: err instanceof Error ? err.message : String(err)
     }
   }
 }

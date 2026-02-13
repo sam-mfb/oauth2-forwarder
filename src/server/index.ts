@@ -110,7 +110,24 @@ const interactiveLogin = buildInteractiveLogin({
       )
     }
   } else {
-    logger.info(`URL whitelist disabled (no whitelist file at ${whitelist.configPath})`)
+    switch (whitelist.disabledReason) {
+      case "parse-error":
+        logger.error(
+          `URL whitelist disabled: failed to parse ${whitelist.configPath}: ${whitelist.parseError}`
+        )
+        break
+      case "empty-domains":
+        logger.warn(
+          `URL whitelist disabled: no domains listed in ${whitelist.configPath}`
+        )
+        break
+      case "file-not-found":
+      default:
+        logger.info(
+          `URL whitelist disabled (no config file found at ${whitelist.configPath})`
+        )
+        break
+    }
   }
 
   const credentialProxy = buildCredentialProxy({
