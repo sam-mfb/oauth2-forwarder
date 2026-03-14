@@ -10,7 +10,7 @@ type Oauth2AuthCodeRequestBaseParams = {
   scope?: string
   response_mode?: "query" | "fragment" | "form_post"
   state?: string
-  prompt?: "login" | "none" | "consent" | "select_account"
+  prompt?: string
   login_hint?: string
   domain_hint?: string
 }
