@@ -58,13 +58,19 @@ export function parseOauth2Url(
     )
   }
 
-  if (
-    params.prompt &&
-    !["login", "none", "consent", "select_account"].includes(params.prompt)
-  ) {
-    return Result.failure(
-      new Error(`${params.prompt} is not valid for "prompt" property`)
+  if (params.prompt) {
+    const validPromptValues = ["login", "none", "consent", "select_account"]
+    const promptValues = params.prompt.split(" ").filter(Boolean)
+    const invalidValues = promptValues.filter(
+      (v) => !validPromptValues.includes(v)
     )
+    if (invalidValues.length > 0) {
+      return Result.failure(
+        new Error(
+          `${invalidValues.join(", ")} is not valid for "prompt" property`
+        )
+      )
+    }
   }
 
   // Build the final params with proper PKCE typing
@@ -81,12 +87,7 @@ export function parseOauth2Url(
           | "form_post"
           | undefined,
         "state": params.state,
-        "prompt": params.prompt as
-          | "login"
-          | "none"
-          | "consent"
-          | "select_account"
-          | undefined,
+        "prompt": params.prompt,
         "login_hint": params.login_hint,
         "domain_hint": params.domain_hint,
         "x-client-SKU": params["x-client-SKU"],
@@ -110,12 +111,7 @@ export function parseOauth2Url(
           | "form_post"
           | undefined,
         "state": params.state,
-        "prompt": params.prompt as
-          | "login"
-          | "none"
-          | "consent"
-          | "select_account"
-          | undefined,
+        "prompt": params.prompt,
         "login_hint": params.login_hint,
         "domain_hint": params.domain_hint,
         "x-client-SKU": params["x-client-SKU"],

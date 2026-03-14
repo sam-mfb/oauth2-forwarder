@@ -189,6 +189,31 @@ describe("parseOauth2Url", () => {
     expect(Result.isSuccess(plainResult)).toBe(true)
   })
 
+  it("accepts multiple space-separated prompt values", () => {
+    const url =
+      "https://accounts.google.com/o/oauth2/auth?scope=openid&redirect_uri=http://localhost:45841&response_type=code&client_id=test&prompt=select_account+consent"
+
+    const result = parseOauth2Url(url)
+
+    expect(Result.isSuccess(result)).toBe(true)
+    if (Result.isSuccess(result)) {
+      expect(result.value.prompt).toEqual("select_account consent")
+    }
+  })
+
+  it("fails when any prompt value in a multi-value prompt is invalid", () => {
+    const url =
+      "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code&prompt=consent+invalid_value"
+
+    const result = parseOauth2Url(url)
+
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isFailure(result)) {
+      expect(result.error.message).toContain("prompt")
+      expect(result.error.message).toContain("invalid_value")
+    }
+  })
+
   it("accepts all valid prompt values", () => {
     const baseUrl =
       "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code&code_challenge=abc&code_challenge_method=S256&prompt="
