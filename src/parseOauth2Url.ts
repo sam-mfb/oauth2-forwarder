@@ -1,13 +1,15 @@
+import { Logger } from "./logger"
 import { Oauth2AuthCodeRequestParams } from "./oauth2-types"
 import { Result } from "./result"
 
 export function parseOauth2Url(
-  url: string | undefined
+  url: string | undefined,
+  logger?: Logger
 ): Result<Oauth2AuthCodeRequestParams> {
   if (!url) {
     return Result.failure(new Error("Url parameter was undefined"))
   }
-  const requiredParams = ["client_id", "response_type", "redirect_uri"]
+  const requiredParams = ["client_id", "redirect_uri"]
 
   let urlObj: URL
   try {
@@ -22,6 +24,13 @@ export function parseOauth2Url(
     if (!params[param]) {
       return Result.failure(new Error(`Missing required parameter: ${param}`))
     }
+  }
+
+  // Warn if response_type is missing (required by RFC 6749, but some providers omit it)
+  if (!params.response_type) {
+    logger?.warn(
+      "Missing response_type parameter. This is required by the OAuth2 spec (RFC 6749) but some providers omit it."
+    )
   }
 
   // Validate PKCE params: both must be present together or neither
@@ -78,7 +87,7 @@ export function parseOauth2Url(
   const parsedParams: Oauth2AuthCodeRequestParams = hasCodeChallenge
     ? {
         "client_id": params.client_id as string,
-        "response_type": params.response_type as string,
+        "response_type": params.response_type,
         "redirect_uri": params.redirect_uri as string,
         "scope": params.scope,
         "response_mode": params.response_mode as
@@ -102,7 +111,7 @@ export function parseOauth2Url(
       }
     : {
         "client_id": params.client_id as string,
-        "response_type": params.response_type as string,
+        "response_type": params.response_type,
         "redirect_uri": params.redirect_uri as string,
         "scope": params.scope,
         "response_mode": params.response_mode as
