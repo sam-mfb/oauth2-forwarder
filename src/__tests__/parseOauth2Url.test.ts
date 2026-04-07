@@ -1,5 +1,17 @@
+import { Logger } from "../logger"
 import { parseOauth2Url } from "../parseOauth2Url"
 import { Result } from "../result"
+
+function buildMockLogger(): Logger & { warnings: string[] } {
+  const warnings: string[] = []
+  return {
+    warnings,
+    error: () => {},
+    warn: (msg: string) => warnings.push(msg),
+    info: () => {},
+    debug: () => {}
+  }
+}
 
 describe("parseOauth2Url", () => {
   it("properly parses a valid url with all required parameters", () => {
@@ -109,6 +121,35 @@ describe("parseOauth2Url", () => {
       expect("code_challenge" in parseResult.value).toBe(false)
       expect("code_challenge_method" in parseResult.value).toBe(false)
     }
+  })
+
+  it("succeeds without response_type but logs a warning", () => {
+    const url =
+      "https://app.hubspot.com/oauth/authorize?client_id=dd618c42-0bf7-490a-a44a-a9a864b6391f&redirect_uri=http%3A//localhost%3A9582/callback&scope=crm.objects.contacts.read"
+
+    const logger = buildMockLogger()
+    const parseResult = parseOauth2Url(url, logger)
+
+    expect(Result.isSuccess(parseResult)).toBe(true)
+    if (Result.isSuccess(parseResult)) {
+      expect(parseResult.value.client_id).toEqual(
+        "dd618c42-0bf7-490a-a44a-a9a864b6391f"
+      )
+      expect(parseResult.value.response_type).toBeUndefined()
+    }
+    expect(logger.warnings).toHaveLength(1)
+    expect(logger.warnings[0]).toContain("response_type")
+  })
+
+  it("does not log a warning when response_type is present", () => {
+    const url =
+      "https://login.example.com/oauth?client_id=test&scope=openid&redirect_uri=http://localhost:3000&response_type=code"
+
+    const logger = buildMockLogger()
+    const parseResult = parseOauth2Url(url, logger)
+
+    expect(Result.isSuccess(parseResult)).toBe(true)
+    expect(logger.warnings).toHaveLength(0)
   })
 
   it("fails when only code_challenge is present without code_challenge_method", () => {

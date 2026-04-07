@@ -146,7 +146,7 @@ export function buildCredentialProxy(deps: {
 
       let oauthParams: Oauth2AuthCodeRequestParams
       if ("url" in deserializedBody) {
-        const oauthParamsResponse = parseOauth2Url(deserializedBody.url)
+        const oauthParamsResponse = parseOauth2Url(deserializedBody.url, logger)
         if (Result.isFailure(oauthParamsResponse)) {
           logger.debug(`OAuth parse error: ${oauthParamsResponse.error.message}`)
           if (deps.passthrough) {

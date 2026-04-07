@@ -5,7 +5,7 @@
  */
 type Oauth2AuthCodeRequestBaseParams = {
   client_id: string
-  response_type: string
+  response_type?: string
   redirect_uri: string
   scope?: string
   response_mode?: "query" | "fragment" | "form_post"
