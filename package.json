@@ -1,6 +1,6 @@
 {
   "name": "oauth2-forwarder",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "description": "utilities for forwarding oauth2 interactive flow (e.g. container to host)",
   "main": "dist/index.js",
   "bin": {
@@ -66,6 +66,8 @@
     "brace-expansion@<1.1.13": "1.1.13",
     "brace-expansion@>=4.0.0 <5.0.5": "5.0.5",
     "picomatch@<=2.3.1": "2.3.2",
-    "picomatch@>=4.0.0 <=4.0.3": "4.0.4"
+    "picomatch@>=4.0.0 <=4.0.3": "4.0.4",
+    "fast-uri": "3.1.2",
+    "postcss": "8.5.14"
   }
 }
