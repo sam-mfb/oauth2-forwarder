@@ -267,8 +267,27 @@ export function buildCredentialProxy(deps: {
                 responseBody.contentType = callbackContentType
               }
             }
+            // Don't log the serialized response body verbatim: for form_post
+            // callbacks it contains the raw OAuth form body (state,
+            // client_info, session_state, etc., and potentially tokens). The
+            // general log sanitizer only redacts `code`/`code_challenge`. Log
+            // a summary that omits the body content but preserves enough info
+            // for debugging.
+            const responseSummary = {
+              url: responseBody.url,
+              requestId: responseBody.requestId,
+              ...(responseBody.method !== undefined && {
+                method: responseBody.method
+              }),
+              ...(responseBody.contentType !== undefined && {
+                contentType: responseBody.contentType
+              }),
+              ...(responseBody.body !== undefined && {
+                bodyLength: responseBody.body.length
+              })
+            }
             logger.debug(
-              `Ending response with output: "${JSON.stringify(responseBody)}"`
+              `Ending response with output: ${JSON.stringify(responseSummary)}`
             )
             res.end(JSON.stringify(responseBody))
           }

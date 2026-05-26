@@ -196,39 +196,68 @@ describe("buildInteractiveLogin — callback capture", () => {
 
   it("ignores follow-up requests on the same keep-alive connection without re-resolving", async () => {
     // This is the favicon/prefetch scenario observed in the real failure log.
-    // After the first callback, the listening socket is closed but the
-    // browser may pipeline additional requests on the keep-alive connection.
+    // After the first callback the listening socket is closed via
+    // server.close(), but existing keep-alive connections stay open and the
+    // browser can pipeline another request (favicon, prefetch, etc.) on the
+    // same connection. The handler must respond to those without resolving
+    // the promise a second time.
     const port = await getRandomPort()
+    const agent = new http.Agent({ keepAlive: true })
+
+    const sendRequest = (
+      path: string
+    ): Promise<{ status: number; body: string }> =>
+      new Promise((resolve, reject) => {
+        const req = http.request(
+          { hostname: LOCALHOST, port, path, method: "GET", agent },
+          res => {
+            const chunks: Buffer[] = []
+            res.on("data", (c: Buffer) => chunks.push(c))
+            res.on("end", () =>
+              resolve({
+                status: res.statusCode ?? 0,
+                body: Buffer.concat(chunks).toString("utf8")
+              })
+            )
+          }
+        )
+        req.on("error", reject)
+        req.end()
+      })
+
+    let firstRequestPromise:
+      | Promise<{ status: number; body: string }>
+      | undefined
 
     const interactiveLogin = buildInteractiveLogin({
       openBrowser: async () => {
-        // Send the real callback first.
-        const agent = new http.Agent({ keepAlive: true })
-        await new Promise<void>((resolve, reject) => {
-          const req = http.request(
-            {
-              hostname: LOCALHOST,
-              port,
-              path: "/?code=abc",
-              method: "GET",
-              agent
-            },
-            res => {
-              res.on("data", () => {})
-              res.on("end", () => resolve())
-            }
-          )
-          req.on("error", reject)
-          req.end()
-        })
-        agent.destroy()
+        // Kick off the initial callback. Don't await it here — the server's
+        // response is held pending complete(), which the test triggers below.
+        firstRequestPromise = sendRequest("/?code=abc")
       },
       logger: buildNoOpLogger()
     })
 
-    // Should resolve exactly once and not throw.
+    // First resolution.
     const result = await interactiveLogin(OAUTH_URL, port)
     expect(result.callbackMethod).toBe("GET")
+
+    // Release the held response for the first request so the keep-alive
+    // connection is free to carry a second request.
     result.complete({ type: "success" })
+    if (!firstRequestPromise) {
+      throw new Error("openBrowser did not initiate the first request")
+    }
+    const firstResult = await firstRequestPromise
+    expect(firstResult.status).toBe(200)
+
+    // Send a follow-up request on the SAME keep-alive agent. This simulates
+    // the browser fetching /favicon.ico on the connection it kept open from
+    // the first request. The follow-up must get a 404 — the original
+    // promise stays resolved exactly once.
+    const secondResult = await sendRequest("/favicon.ico")
+    expect(secondResult.status).toBe(404)
+
+    agent.destroy()
   })
 })

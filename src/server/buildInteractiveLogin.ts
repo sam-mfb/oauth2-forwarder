@@ -64,7 +64,12 @@ export function buildInteractiveLogin(deps: {
 
         req.on("data", (chunk: Buffer) => {
           bodyChunks.push(chunk)
-          logger.debug(`Received data chunk: ${chunk.toString("utf8")}`)
+          // Don't log the chunk payload: with response_mode=form_post the body
+          // carries OAuth params (code, state, client_info, session_state,
+          // and in some flows tokens). The general log sanitizer only redacts
+          // `code`/`code_challenge`, so logging the raw chunk would leak the
+          // rest into debug logs.
+          logger.debug(`Received data chunk (${chunk.length} bytes)`)
         })
 
         req.on("close", () => {
