@@ -244,4 +244,260 @@ describe("buildRedirect", () => {
       expect(messages.some(m => m.includes("GET request"))).toBe(true)
     })
   })
+
+  describe("form_post (POST) replay", () => {
+    type CapturedRequest = {
+      method?: string
+      contentType?: string | string[]
+      body: string
+    }
+
+    const createCapturingServer = (
+      host: string,
+      responseCode: number,
+      onRequest: (received: CapturedRequest) => void,
+      options?: { location?: string; body?: string }
+    ): Promise<number> => {
+      return new Promise((resolve, reject) => {
+        server = http.createServer((req, res) => {
+          const chunks: Buffer[] = []
+          req.on("data", (chunk: Buffer) => chunks.push(chunk))
+          req.on("end", () => {
+            onRequest({
+              method: req.method,
+              contentType: req.headers["content-type"],
+              body: Buffer.concat(chunks).toString("utf8")
+            })
+            if (options?.location) {
+              res.setHeader("Location", options.location)
+            }
+            res.statusCode = responseCode
+            res.end(options?.body ?? "")
+          })
+        })
+        server.on("error", reject)
+        server.listen(0, host, () => {
+          if (!server) {
+            reject(new Error("Server not initialized"))
+            return
+          }
+          const address = server.address()
+          if (address && typeof address === "object") {
+            resolve(address.port)
+          } else {
+            reject(new Error("Failed to get server port"))
+          }
+        })
+      })
+    }
+
+    it("sends POST with form body when method=POST", async () => {
+      let captured: CapturedRequest | undefined
+      serverPort = await createCapturingServer("127.0.0.1", 200, r => {
+        captured = r
+      })
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+      const body = "code=abc123&state=xyz&session_state=def"
+      const result = await redirect(`http://127.0.0.1:${serverPort}/`, {
+        method: "POST",
+        body,
+        contentType: "application/x-www-form-urlencoded"
+      })
+
+      expect(result.type).toBe("success")
+      expect(captured?.method).toBe("POST")
+      expect(captured?.contentType).toBe("application/x-www-form-urlencoded")
+      expect(captured?.body).toBe(body)
+    })
+
+    it("defaults Content-Type to application/x-www-form-urlencoded if omitted", async () => {
+      let captured: CapturedRequest | undefined
+      serverPort = await createCapturingServer("127.0.0.1", 200, r => {
+        captured = r
+      })
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+      await redirect(`http://127.0.0.1:${serverPort}/`, {
+        method: "POST",
+        body: "code=abc"
+      })
+
+      expect(captured?.contentType).toBe("application/x-www-form-urlencoded")
+    })
+
+    it("uses GET when no options are provided (back-compat)", async () => {
+      let captured: CapturedRequest | undefined
+      serverPort = await createCapturingServer("127.0.0.1", 200, r => {
+        captured = r
+      })
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+      await redirect(`http://127.0.0.1:${serverPort}/?code=abc`)
+
+      expect(captured?.method).toBe("GET")
+      expect(captured?.body).toBe("")
+    })
+
+    it("does not send a body when method=GET", async () => {
+      let captured: CapturedRequest | undefined
+      serverPort = await createCapturingServer("127.0.0.1", 200, r => {
+        captured = r
+      })
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+      await redirect(`http://127.0.0.1:${serverPort}/?code=abc`, {
+        method: "GET",
+        body: "should-be-ignored"
+      })
+
+      expect(captured?.method).toBe("GET")
+      expect(captured?.body).toBe("")
+    })
+
+    it("switches to GET on loopback redirect (does not replay POST body)", async () => {
+      // First server: receives initial POST and 302-redirects to a second server.
+      // Second server: must receive a GET with no body.
+      let secondRequest: CapturedRequest | undefined
+      const secondServer = await new Promise<{
+        port: number
+        close: () => void
+      }>((resolve, reject) => {
+        const s = http.createServer((req, res) => {
+          const chunks: Buffer[] = []
+          req.on("data", (c: Buffer) => chunks.push(c))
+          req.on("end", () => {
+            secondRequest = {
+              method: req.method,
+              contentType: req.headers["content-type"],
+              body: Buffer.concat(chunks).toString("utf8")
+            }
+            res.statusCode = 200
+            res.end("done")
+          })
+        })
+        s.on("error", reject)
+        s.listen(0, "127.0.0.1", () => {
+          const address = s.address()
+          if (address && typeof address === "object") {
+            resolve({ port: address.port, close: () => s.close() })
+          } else {
+            reject(new Error("Failed to get port"))
+          }
+        })
+      })
+
+      let firstRequest: CapturedRequest | undefined
+      try {
+        serverPort = await createCapturingServer(
+          "127.0.0.1",
+          302,
+          r => {
+            firstRequest = r
+          },
+          { location: `http://127.0.0.1:${secondServer.port}/next` }
+        )
+        const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+        const result = await redirect(`http://127.0.0.1:${serverPort}/`, {
+          method: "POST",
+          body: "code=abc",
+          contentType: "application/x-www-form-urlencoded"
+        })
+
+        expect(result.type).toBe("success")
+        expect(firstRequest?.method).toBe("POST")
+        expect(firstRequest?.body).toBe("code=abc")
+        // After loopback 302 we should be using GET with no body.
+        expect(secondRequest?.method).toBe("GET")
+        expect(secondRequest?.body).toBe("")
+      } finally {
+        secondServer.close()
+      }
+    })
+
+    it("returns 'redirect' for non-loopback 302 (POST body not replayed externally)", async () => {
+      const externalUrl = "https://example.com/success"
+      let captured: CapturedRequest | undefined
+      serverPort = await createCapturingServer(
+        "127.0.0.1",
+        302,
+        r => {
+          captured = r
+        },
+        { location: externalUrl }
+      )
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+      const result = await redirect(`http://127.0.0.1:${serverPort}/`, {
+        method: "POST",
+        body: "code=abc",
+        contentType: "application/x-www-form-urlencoded"
+      })
+
+      expect(result.type).toBe("redirect")
+      if (result.type === "redirect") {
+        expect(result.location).toBe(externalUrl)
+      }
+      expect(captured?.method).toBe("POST")
+      expect(captured?.body).toBe("code=abc")
+    })
+
+    it("propagates the POST 400 status as an error (regression: form_post mishandling)", async () => {
+      serverPort = await createCapturingServer("127.0.0.1", 400, () => {})
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+
+      const result = await redirect(`http://127.0.0.1:${serverPort}/`, {
+        method: "POST",
+        body: "code=abc",
+        contentType: "application/x-www-form-urlencoded"
+      })
+
+      expect(result.type).toBe("error")
+      if (result.type === "error") {
+        expect(result.message).toMatch(/unexpected status.*400/i)
+      }
+    })
+
+    it("sets Content-Length matching the body byte length", async () => {
+      let receivedContentLength: string | undefined
+      await new Promise<void>((resolve, reject) => {
+        server = http.createServer((req, res) => {
+          receivedContentLength = req.headers["content-length"]
+          // Drain the body so the request finishes
+          req.on("data", () => {})
+          req.on("end", () => {
+            res.statusCode = 200
+            res.end()
+          })
+        })
+        server.on("error", reject)
+        server.listen(0, "127.0.0.1", () => {
+          if (!server) {
+            reject(new Error("Server not initialized"))
+            return
+          }
+          const address = server.address()
+          if (address && typeof address === "object") {
+            serverPort = address.port
+            resolve()
+          } else {
+            reject(new Error("Failed to get server port"))
+          }
+        })
+      })
+
+      const body = "code=héllo"
+      const redirect = buildRedirect({ logger: buildNoOpLogger() })
+      const result = await redirect(`http://127.0.0.1:${serverPort}/`, {
+        method: "POST",
+        body
+      })
+
+      expect(result.type).toBe("success")
+      expect(receivedContentLength).toBe(
+        String(Buffer.byteLength(body, "utf8"))
+      )
+    })
+  })
 })

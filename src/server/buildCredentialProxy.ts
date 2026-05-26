@@ -50,7 +50,9 @@ export function buildCredentialProxy(deps: {
       }
       const hostname = getDomain(url) ?? "unknown"
       const reason = `Domain '${hostname}' is not in the whitelist`
-      const logPrefix = isPassthrough ? "Whitelist rejection (passthrough)" : "Whitelist rejection"
+      const logPrefix = isPassthrough
+        ? "Whitelist rejection (passthrough)"
+        : "Whitelist rejection"
       logger.warn(`${logPrefix}: ${reason}`)
       res.writeHead(403, reason)
       res.end()
@@ -125,7 +127,9 @@ export function buildCredentialProxy(deps: {
       clearTimeout(pending.timeoutId)
       pendingRequests.delete(report.requestId)
       logger.info(`Completed OAuth request for ${pending.domain}`)
-      logger.debug(`Request ${report.requestId} completed with result: ${report.result.type}`)
+      logger.debug(
+        `Request ${report.requestId} completed with result: ${report.result.type}`
+      )
       pending.complete(report.result)
 
       res.writeHead(200)
@@ -148,12 +152,15 @@ export function buildCredentialProxy(deps: {
       if ("url" in deserializedBody) {
         const oauthParamsResponse = parseOauth2Url(deserializedBody.url, logger)
         if (Result.isFailure(oauthParamsResponse)) {
-          logger.debug(`OAuth parse error: ${oauthParamsResponse.error.message}`)
+          logger.debug(
+            `OAuth parse error: ${oauthParamsResponse.error.message}`
+          )
           if (deps.passthrough) {
             if (rejectIfNotWhitelisted(deserializedBody.url, res, true)) {
               return
             }
-            const passthroughDomain = getDomain(deserializedBody.url) ?? "unknown"
+            const passthroughDomain =
+              getDomain(deserializedBody.url) ?? "unknown"
             logger.info(`Passthrough: opening ${passthroughDomain} in browser`)
             deps.openBrowser(deserializedBody.url).catch(err => {
               logger.error(`Failed to open browser: ${err}`)
@@ -212,30 +219,60 @@ export function buildCredentialProxy(deps: {
       logger.info(`Received OAuth request for ${domain}`)
       deps
         .interactiveLogin(deserializedBody.url, port)
-        .then(({ callbackUrl, requestId, complete }) => {
-          logger.debug(`Interactive login received callback, requestId: ${requestId}`)
-
-          // Store the completion handler with TTL timeout for cleanup
-          const timeoutId = setTimeout(() => {
-            logger.warn(
-              `Pending request ${requestId} expired after ${pendingRequestTtlMs}ms, cleaning up`
+        .then(
+          ({
+            callbackUrl,
+            callbackMethod,
+            callbackBody,
+            callbackContentType,
+            requestId,
+            complete
+          }) => {
+            logger.debug(
+              `Interactive login received callback, requestId: ${requestId}`
             )
-            pendingRequests.delete(requestId)
-          }, pendingRequestTtlMs)
 
-          pendingRequests.set(requestId, { complete, timeoutId, domain })
-          logger.debug(
-            `Stored pending request ${requestId} with TTL ${pendingRequestTtlMs}ms`
-          )
+            // Store the completion handler with TTL timeout for cleanup
+            const timeoutId = setTimeout(() => {
+              logger.warn(
+                `Pending request ${requestId} expired after ${pendingRequestTtlMs}ms, cleaning up`
+              )
+              pendingRequests.delete(requestId)
+            }, pendingRequestTtlMs)
 
-          logger.debug("Sending callback URL and requestId to client")
-          res.writeHead(200)
-          const responseBody = { url: callbackUrl, requestId }
-          logger.debug(
-            `Ending response with output: "${JSON.stringify(responseBody)}"`
-          )
-          res.end(JSON.stringify(responseBody))
-        })
+            pendingRequests.set(requestId, { complete, timeoutId, domain })
+            logger.debug(
+              `Stored pending request ${requestId} with TTL ${pendingRequestTtlMs}ms`
+            )
+
+            logger.debug("Sending callback URL and requestId to client")
+            res.writeHead(200)
+            const responseBody: {
+              url: string
+              requestId: string
+              method?: "GET" | "POST"
+              body?: string
+              contentType?: string
+            } = { url: callbackUrl, requestId }
+            // Only include the method/body fields when the callback was a POST
+            // (response_mode=form_post). Keeping the wire format minimal for
+            // the common GET case preserves backward compatibility with older
+            // clients that don't know about these fields.
+            if (callbackMethod === "POST") {
+              responseBody.method = "POST"
+              if (callbackBody !== undefined) {
+                responseBody.body = callbackBody
+              }
+              if (callbackContentType !== undefined) {
+                responseBody.contentType = callbackContentType
+              }
+            }
+            logger.debug(
+              `Ending response with output: "${JSON.stringify(responseBody)}"`
+            )
+            res.end(JSON.stringify(responseBody))
+          }
+        )
         .catch(error => {
           logger.error(`Interactive login error: "${JSON.stringify(error)}"`)
           res.writeHead(500, JSON.stringify(error))
@@ -249,7 +286,9 @@ export function buildCredentialProxy(deps: {
       close: () => {
         // Clear all pending request timeouts on shutdown
         for (const [requestId, pending] of pendingRequests) {
-          logger.debug(`Clearing pending request timeout for ${requestId} on shutdown`)
+          logger.debug(
+            `Clearing pending request timeout for ${requestId} on shutdown`
+          )
           clearTimeout(pending.timeoutId)
         }
         pendingRequests.clear()

@@ -8,6 +8,22 @@ const DEFAULT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000
 
 export type InteractiveLoginResult = {
   callbackUrl: string
+  /**
+   * HTTP method the OAuth provider used when delivering the callback.
+   * "GET" for response_mode=query (default), "POST" for response_mode=form_post.
+   */
+  callbackMethod: "GET" | "POST"
+  /**
+   * Raw request body when the callback arrived as a POST (form_post).
+   * Undefined for GET callbacks.
+   */
+  callbackBody?: string
+  /**
+   * Content-Type header from the inbound callback, if present. Forwarded so
+   * that the in-container loopback server (e.g. MSAL) sees the same media
+   * type the OAuth provider used (typically application/x-www-form-urlencoded).
+   */
+  callbackContentType?: string
   requestId: string
   complete: (result: RedirectResult) => void
 }
@@ -27,6 +43,7 @@ export function buildInteractiveLogin(deps: {
       logger.debug(`Generated requestId: ${requestId}`)
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined
+      let resolved = false
 
       const server = http.createServer((req, res) => {
         // Clear timeout as soon as we receive a request
@@ -35,6 +52,8 @@ export function buildInteractiveLogin(deps: {
           timeoutId = undefined
         }
         logger.debug(`Received a ${req.method ?? "undefined"} request`)
+        const bodyChunks: Buffer[] = []
+
         req.on("error", error => {
           logger.error(`Request error: ${JSON.stringify(error)}`)
           res.writeHead(500, JSON.stringify(error))
@@ -43,8 +62,9 @@ export function buildInteractiveLogin(deps: {
           reject(error)
         })
 
-        req.on("data", chunk => {
-          logger.debug(`Received data chunk: ${chunk}`)
+        req.on("data", (chunk: Buffer) => {
+          bodyChunks.push(chunk)
+          logger.debug(`Received data chunk: ${chunk.toString("utf8")}`)
         })
 
         req.on("close", () => {
@@ -53,6 +73,17 @@ export function buildInteractiveLogin(deps: {
 
         req.on("end", () => {
           logger.debug("Request ended")
+
+          // After the first callback we've already resolved the promise and
+          // closed the listening socket. Some browsers reuse the underlying
+          // keep-alive connection for follow-up requests (favicon, prefetch,
+          // etc.); ignore those rather than re-resolving.
+          if (resolved) {
+            logger.debug("Ignoring follow-up request after callback resolved")
+            res.writeHead(404)
+            res.end()
+            return
+          }
 
           if (!req.headers.host) {
             const reason = "Missing Host header in redirect request"
@@ -64,13 +95,32 @@ export function buildInteractiveLogin(deps: {
             return
           }
           const callbackUrl = "http://" + req.headers.host + req.url
+          const method = (req.method ?? "GET").toUpperCase()
+          const callbackMethod: "GET" | "POST" =
+            method === "POST" ? "POST" : "GET"
+
+          let callbackBody: string | undefined
+          let callbackContentType: string | undefined
+          if (callbackMethod === "POST") {
+            callbackBody = Buffer.concat(bodyChunks).toString("utf8")
+            const ct = req.headers["content-type"]
+            if (typeof ct === "string") {
+              callbackContentType = ct
+            }
+            logger.debug(
+              `Captured form_post callback: contentType="${callbackContentType ?? "(none)"}", bodyLength=${callbackBody.length}`
+            )
+          }
 
           logger.debug(`Received callback url: "${callbackUrl}"`)
+          logger.debug(`Callback method: ${callbackMethod}`)
           logger.debug("Holding browser response pending completion")
 
           // Close the listening socket immediately to free the port
           // The existing connection (browser response) stays open
-          logger.debug("Closing listening socket (keeping response connection open)")
+          logger.debug(
+            "Closing listening socket (keeping response connection open)"
+          )
           server.close()
 
           // Create completion function that will respond to browser
@@ -99,18 +149,30 @@ export function buildInteractiveLogin(deps: {
                 break
 
               case "error":
-                logger.debug(`Sending error response to browser: ${result.message}`)
+                logger.debug(
+                  `Sending error response to browser: ${result.message}`
+                )
                 res.writeHead(500, { "Content-Type": "text/html" })
                 res.end(`Authentication failed: ${result.message}`)
                 break
             }
           }
 
-          resolve({ callbackUrl, requestId, complete })
+          resolved = true
+          resolve({
+            callbackUrl,
+            callbackMethod,
+            callbackBody,
+            callbackContentType,
+            requestId,
+            complete
+          })
         })
       })
 
-      logger.debug(`Starting temporary redirect server on port ${responsePort}...`)
+      logger.debug(
+        `Starting temporary redirect server on port ${responsePort}...`
+      )
       server.listen(responsePort, LOCALHOST, () => {
         logger.debug("Temporary redirect server is listening")
 

@@ -1,5 +1,6 @@
 import {
   createTestHarness,
+  createTestHarnessWithCustomContainer,
   createMockContainer,
   getNextPort,
   sendRawRequest,
@@ -64,6 +65,79 @@ describe("happy path", () => {
     expect(harness.didFail()).toBe(false)
     const url = new URL(harness.getRedirectUrl())
     expect(url.searchParams.get("code")).toEqual(TEST_CODE)
+  })
+
+  it("roundtrips OAuth code via response_mode=form_post", async () => {
+    // Simulates the Azure CLI flow: Microsoft delivers the auth code as a
+    // POST with application/x-www-form-urlencoded body instead of as URL
+    // query parameters.
+    const serverPort = getNextPort()
+    const redirectPort = getNextPort()
+
+    // The client-side redirect should hit a real container and replay the
+    // form_post POST; verify the container actually sees a POST with the
+    // expected body.
+    let receivedMethod: string | undefined
+    let receivedContentType: string | undefined
+    let receivedBody: string | undefined
+
+    const harness = createTestHarnessWithCustomContainer({
+      port: serverPort,
+      callbackParams: { code: TEST_CODE, state: TEST_STATE },
+      containerPort: redirectPort,
+      formPost: true,
+      onContainerRequest: req => {
+        receivedMethod = req.method
+        receivedContentType = req.contentType
+        receivedBody = req.body
+      },
+      containerStatusCode: 200,
+      containerBody: "<html>Authentication successful!</html>"
+    })
+
+    const { close } = await harness.server()
+    await harness.client(createTestUrl(redirectPort, "", true))
+    close()
+
+    expect(harness.didFail()).toBe(false)
+    const result = harness.getRedirectResult()
+    expect(result?.type).toBe("success")
+
+    expect(receivedMethod).toBe("POST")
+    expect(receivedContentType).toBe("application/x-www-form-urlencoded")
+    expect(receivedBody).toContain(`code=${TEST_CODE}`)
+    expect(receivedBody).toContain(`state=${TEST_STATE}`)
+  })
+
+  it("propagates 400 from form_post replay as an error result (regression)", async () => {
+    // This is the exact scenario from the bug report: with response_mode=form_post,
+    // an old/buggy forwarder would replay the callback as a GET with no body, and
+    // the local OAuth listener would return 400. Verify the round-trip now succeeds.
+    // We simulate the "buggy" listener by having the container return 400 for GET,
+    // and 200 only for POST with a body. The fix should produce a "success" because
+    // we POST the body through correctly.
+    const serverPort = getNextPort()
+    const redirectPort = getNextPort()
+
+    const harness = createTestHarnessWithCustomContainer({
+      port: serverPort,
+      callbackParams: { code: TEST_CODE },
+      containerPort: redirectPort,
+      formPost: true,
+      onContainerRequest: () => {},
+      // Only succeed when a non-empty POST body is received
+      respondBasedOnRequest: req =>
+        req.method === "POST" && req.body.includes("code=")
+          ? { statusCode: 200, body: "<html>OK</html>" }
+          : { statusCode: 400, body: "missing code" }
+    })
+
+    const { close } = await harness.server()
+    await harness.client(createTestUrl(redirectPort))
+    close()
+
+    expect(harness.didFail()).toBe(false)
+    expect(harness.getRedirectResult()?.type).toBe("success")
   })
 
   it("roundtrips code and state through callback path", async () => {
@@ -576,6 +650,75 @@ describe("error handling", () => {
   })
 })
 
+describe("server → client wire format for form_post", () => {
+  it("includes method/body/contentType in the JSON response when callback is POST", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    const TEST_BODY = "code=abc&state=xyz&session_state=sss"
+    const TEST_CT = "application/x-www-form-urlencoded"
+
+    const harness = createTestHarness({
+      port,
+      interactiveLogin: async () => ({
+        callbackUrl: `http://localhost:${redirectPort}/`,
+        callbackMethod: "POST",
+        callbackBody: TEST_BODY,
+        callbackContentType: TEST_CT,
+        requestId: "test-form-post-id",
+        complete: () => {}
+      })
+    })
+
+    const { close } = await harness.server()
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({
+        url: `https://example.com/oauth?client_id=x&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=${TEST_CODE_CHALLENGE}&code_challenge_method=S256&response_mode=form_post`
+      })
+    )
+    close()
+
+    expect(response.statusCode).toEqual(200)
+    const parsed = JSON.parse(response.body)
+    expect(parsed.method).toEqual("POST")
+    expect(parsed.body).toEqual(TEST_BODY)
+    expect(parsed.contentType).toEqual(TEST_CT)
+    expect(parsed.url).toEqual(`http://localhost:${redirectPort}/`)
+    expect(parsed.requestId).toEqual("test-form-post-id")
+  })
+
+  it("omits method/body/contentType when callback is GET (back-compat)", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+
+    const harness = createTestHarness({
+      port,
+      interactiveLogin: async () => ({
+        callbackUrl: `http://localhost:${redirectPort}/?code=abc`,
+        callbackMethod: "GET",
+        requestId: "test-get-id",
+        complete: () => {}
+      })
+    })
+
+    const { close } = await harness.server()
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({
+        url: `https://example.com/oauth?client_id=x&redirect_uri=http://localhost:${redirectPort}&response_type=code&scope=openid&code_challenge=${TEST_CODE_CHALLENGE}&code_challenge_method=S256`
+      })
+    )
+    close()
+
+    expect(response.statusCode).toEqual(200)
+    const parsed = JSON.parse(response.body)
+    expect(parsed.method).toBeUndefined()
+    expect(parsed.body).toBeUndefined()
+    expect(parsed.contentType).toBeUndefined()
+    expect(parsed.url).toEqual(`http://localhost:${redirectPort}/?code=abc`)
+  })
+})
+
 describe("/complete endpoint", () => {
   it("returns 400 for invalid JSON", async () => {
     const port = getNextPort()
@@ -676,6 +819,7 @@ describe("timeout handling", () => {
       capturedRequestId = requestId
       return {
         callbackUrl: `http://localhost:${_responsePort}?code=test`,
+        callbackMethod: "GET" as const,
         requestId,
         complete: () => {}
       }
@@ -736,6 +880,7 @@ describe("timeout handling", () => {
       capturedRequestId = requestId
       return {
         callbackUrl: `http://localhost:${_responsePort}?code=test`,
+        callbackMethod: "GET" as const,
         requestId,
         complete: () => {}
       }

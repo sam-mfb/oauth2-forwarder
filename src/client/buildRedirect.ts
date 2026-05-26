@@ -1,6 +1,6 @@
 import http from "http"
 import { isLoopbackUrl, convertLoopbackUrl } from "../loopback"
-import { RedirectResult } from "../redirect-types"
+import { RedirectResult, RedirectRequestOptions } from "../redirect-types"
 import { type Logger } from "../logger"
 
 const MAX_REDIRECTS = 10
@@ -13,18 +13,26 @@ type RequestResult = {
 }
 
 /**
- * Makes an HTTP GET request to the given URL and returns the result.
+ * Makes an HTTP request to the given URL and returns the result.
  * For loopback URLs, implements RFC 8252 best practice of trying both
  * IPv4 (127.0.0.1) and IPv6 ([::1]) addresses to handle cases where
  * servers may bind to one or the other.
+ *
+ * Supports both GET (response_mode=query) and POST (response_mode=form_post)
+ * callback replay.
  */
 export function buildRedirect(deps: {
   logger: Logger
-}): (url: string) => Promise<RedirectResult> {
+}): (url: string, options?: RedirectRequestOptions) => Promise<RedirectResult> {
   const { logger } = deps
 
   const makeRequest = (
     url: string,
+    requestOptions: {
+      method: "GET" | "POST"
+      body?: string
+      contentType?: string
+    },
     hostHeader?: string
   ): Promise<RequestResult> => {
     return new Promise((resolve, reject) => {
@@ -36,15 +44,28 @@ export function buildRedirect(deps: {
       // Strip brackets from IPv6 addresses - URL.hostname returns "[::1]" but
       // http.request expects "::1"
       const hostname = parsedUrl.hostname.replace(/^\[|\]$/g, "")
+      const headers: http.OutgoingHttpHeaders = {}
+      if (hostHeader) {
+        headers.Host = hostHeader
+      }
+
+      const bodyBuffer =
+        requestOptions.method === "POST" && requestOptions.body !== undefined
+          ? Buffer.from(requestOptions.body, "utf8")
+          : undefined
+
+      if (bodyBuffer) {
+        headers["Content-Length"] = bodyBuffer.length
+        headers["Content-Type"] =
+          requestOptions.contentType ?? "application/x-www-form-urlencoded"
+      }
+
       const options: http.RequestOptions = {
         hostname,
         port: parsedUrl.port || 80,
         path: parsedUrl.pathname + parsedUrl.search,
-        method: "GET"
-      }
-
-      if (hostHeader) {
-        options.headers = { Host: hostHeader }
+        method: requestOptions.method,
+        headers
       }
 
       const req = http.request(options, res => {
@@ -76,12 +97,20 @@ export function buildRedirect(deps: {
         reject(error)
       })
 
+      if (bodyBuffer) {
+        req.write(bodyBuffer)
+      }
       req.end()
     })
   }
 
   const makeRequestWithLoopbackFallback = async (
-    url: string
+    url: string,
+    requestOptions: {
+      method: "GET" | "POST"
+      body?: string
+      contentType?: string
+    }
   ): Promise<RequestResult> => {
     if (isLoopbackUrl(url)) {
       // Preserve the original host for the Host header (e.g., "localhost:8080")
@@ -94,13 +123,13 @@ export function buildRedirect(deps: {
       logger.debug(`Preserving original Host header: ${originalHost}`)
       try {
         logger.debug(`Trying IPv4: ${ipv4Url}`)
-        return await makeRequest(ipv4Url, originalHost)
+        return await makeRequest(ipv4Url, requestOptions, originalHost)
       } catch (ipv4Error) {
         const err = ipv4Error as NodeJS.ErrnoException
         if (err.code === "ECONNREFUSED") {
           logger.debug(`IPv4 connection refused, trying IPv6: ${ipv6Url}`)
           try {
-            return await makeRequest(ipv6Url, originalHost)
+            return await makeRequest(ipv6Url, requestOptions, originalHost)
           } catch (ipv6Error) {
             const err6 = ipv6Error as NodeJS.ErrnoException
             throw new Error(
@@ -112,15 +141,20 @@ export function buildRedirect(deps: {
         throw ipv4Error
       }
     }
-    return await makeRequest(url)
+    return await makeRequest(url, requestOptions)
   }
 
   const followRedirects = async (
     url: string,
+    requestOptions: {
+      method: "GET" | "POST"
+      body?: string
+      contentType?: string
+    },
     remainingRedirects: number
   ): Promise<RedirectResult> => {
     logger.debug(
-      `Making GET request to url: "${url}" (${remainingRedirects} redirects remaining)`
+      `Making ${requestOptions.method} request to url: "${url}" (${remainingRedirects} redirects remaining)`
     )
 
     if (remainingRedirects <= 0) {
@@ -132,7 +166,7 @@ export function buildRedirect(deps: {
 
     let result: RequestResult
     try {
-      result = await makeRequestWithLoopbackFallback(url)
+      result = await makeRequestWithLoopbackFallback(url, requestOptions)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       return { type: "error", message }
@@ -151,10 +185,17 @@ export function buildRedirect(deps: {
 
       logger.debug(`Redirect to: ${location}`)
 
-      // If redirect is to a loopback URL, follow it
+      // If redirect is to a loopback URL, follow it.
+      // Per common HTTP semantics (and how browsers handle 301/302 from POST),
+      // we switch to a GET and drop the body when following a redirect chain.
+      // The body only applied to the initial callback to the OAuth listener.
       if (isLoopbackUrl(location)) {
         logger.debug(`Following localhost redirect`)
-        return followRedirects(location, remainingRedirects - 1)
+        return followRedirects(
+          location,
+          { method: "GET" },
+          remainingRedirects - 1
+        )
       }
 
       // Non-localhost redirect: return it for the server to forward to browser
@@ -172,5 +213,14 @@ export function buildRedirect(deps: {
     }
   }
 
-  return url => followRedirects(url, MAX_REDIRECTS)
+  return (url, options) =>
+    followRedirects(
+      url,
+      {
+        method: options?.method ?? "GET",
+        body: options?.body,
+        contentType: options?.contentType
+      },
+      MAX_REDIRECTS
+    )
 }

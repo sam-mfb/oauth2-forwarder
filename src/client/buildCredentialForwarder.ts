@@ -1,18 +1,31 @@
 import http from "http"
-import { CompletionReport, RedirectResult } from "../redirect-types"
+import {
+  CompletionReport,
+  RedirectResult,
+  RedirectRequestOptions
+} from "../redirect-types"
 import { type Logger } from "../logger"
 
 export function buildCredentialForwarder(deps: {
   host: string
   port: number
-  redirect: (url: string) => Promise<RedirectResult>
+  redirect: (
+    url: string,
+    options?: RedirectRequestOptions
+  ) => Promise<RedirectResult>
   logger: Logger
 }): (url: string) => Promise<RedirectResult> {
   const { logger } = deps
 
   const sendOauth2Request = (
     url: string
-  ): Promise<{ redirectUrl: string; requestId: string }> => {
+  ): Promise<{
+    redirectUrl: string
+    requestId: string
+    method?: "GET" | "POST"
+    body?: string
+    contentType?: string
+  }> => {
     return new Promise((resolve, reject) => {
       const requestOptions: http.RequestOptions = {
         path: "/",
@@ -56,9 +69,19 @@ export function buildCredentialForwarder(deps: {
             reject("Response did not contain 'requestId' property")
             return
           }
+          const method = outputSerialized.method === "POST" ? "POST" : undefined
           resolve({
             redirectUrl: outputSerialized.url,
-            requestId: outputSerialized.requestId
+            requestId: outputSerialized.requestId,
+            method,
+            body:
+              typeof outputSerialized.body === "string"
+                ? outputSerialized.body
+                : undefined,
+            contentType:
+              typeof outputSerialized.contentType === "string"
+                ? outputSerialized.contentType
+                : undefined
           })
         })
         res.on("close", () => {
@@ -129,12 +152,22 @@ export function buildCredentialForwarder(deps: {
   return async url => {
     // Step 1: Send OAuth2 URL to server
     logger.debug(`Starting credential forwarding for URL: "${url}"`)
-    const { redirectUrl, requestId } = await sendOauth2Request(url)
-    logger.debug(`Received redirectUrl: "${redirectUrl}", requestId: "${requestId}"`)
+    const { redirectUrl, requestId, method, body, contentType } =
+      await sendOauth2Request(url)
+    logger.debug(
+      `Received redirectUrl: "${redirectUrl}", requestId: "${requestId}", method: "${method ?? "GET"}"`
+    )
 
     // Step 2: Perform the redirect (follows localhost redirects, returns non-localhost)
+    // For response_mode=form_post the server delivers method=POST plus the
+    // form-urlencoded body, so we replay the exact request the OAuth provider
+    // made — the local OAuth listener (e.g. MSAL) needs the original POST.
     logger.debug(`Performing redirect to: "${redirectUrl}"`)
-    const result = await deps.redirect(redirectUrl)
+    const result = await deps.redirect(redirectUrl, {
+      method: method ?? "GET",
+      body,
+      contentType
+    })
     logger.debug(`Redirect result type: "${result.type}"`)
 
     // Step 3: Send completion report to server
