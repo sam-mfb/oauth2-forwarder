@@ -38,9 +38,9 @@ This utility works by changing the flow above as follows using a client-server p
 2. [container] `o2f-client` intercepts the request and forwards the url to `o2f-server` over a custom tcp port
 3. [host] `o2f-server` receives the request sends the the login url to the browser and simultaneously opens an http service to listen for the redirect response
 4. [host] The browser opens the login url and the user performs interactive authentication.
-5. [host] The successful interactive authentication results in a redirect GET request being made with the new authentication code.
-6. [host] The http service setup by `o2f-server` receives the redirect requests, extracts the code, and sends it back to `o2f-client` using the tcp channel opened in step 2.
-7. [container] `o2f-client` makes a GET requested for the redirect url it just received.
+5. [host] The successful interactive authentication results in a redirect request being made with the new authentication code. Most providers send a GET with the code as a query parameter; some (e.g. Azure / MSAL using `response_mode=form_post`) send a POST with an `application/x-www-form-urlencoded` body. Both are supported.
+6. [host] The http service setup by `o2f-server` receives the redirect request, captures the method, body, and content-type as needed, and sends them back to `o2f-client` using the tcp channel opened in step 2.
+7. [container] `o2f-client` replays the same request (GET or POST) against the local redirect url.
 8. [container] The http service setup by the CLI tool receives the redirect requests, extracts the code, and uses it.
 
 ## Installation and Usage
@@ -259,7 +259,7 @@ Both `o2f-server` and `o2f-client` support the following command line options:
 Example:
 ```bash
 o2f-server --version
-# Output: o2f-server v1.4.2
+# Output: o2f-server v1.5.0
 ```
 
 ## Security
