@@ -1,0 +1,25 @@
+# Dependabot configuration
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# All dependencies are sourced from the public npm registry, so no `registries:`
+# block is defined here. Providing this explicit config also resolves the
+# "Private npm registries require ... configuration in dependabot.yml" error that
+# Dependabot's automatic GitHub Packages auth otherwise raises on this repo.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # Batch routine version bumps into a single PR to reduce noise.
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
