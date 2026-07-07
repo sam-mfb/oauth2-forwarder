@@ -259,7 +259,7 @@ Both `o2f-server` and `o2f-client` support the following command line options:
 Example:
 ```bash
 o2f-server --version
-# Output: o2f-server v1.5.1
+# Output: o2f-server v1.6.0
 ```
 
 ## Security
