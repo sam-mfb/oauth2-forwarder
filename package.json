@@ -41,19 +41,19 @@
   "devDependencies": {
     "@eslint/js": "^9.25.1",
     "@types/eslint__js": "^8.42.3",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.1.0",
     "eslint": "^9.25.1",
-    "prettier": "^3.5.3",
+    "prettier": "^3.9.4",
     "rimraf": "^6.0.1",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.31.1",
+    "typescript-eslint": "^8.62.1",
     "vitest": "^3.2.6",
-    "webpack": "^5.99.7",
+    "webpack": "^5.108.3",
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "nanoid": "^5.1.5",
+    "nanoid": "^5.1.16",
     "open": "^11.0.0"
   },
   "overrides": {
