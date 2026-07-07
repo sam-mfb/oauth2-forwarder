@@ -134,7 +134,8 @@ export function buildRedirect(deps: {
             const err6 = ipv6Error as NodeJS.ErrnoException
             throw new Error(
               `Connection refused on both IPv4 and IPv6. ` +
-                `IPv4 error: ${err.message}, IPv6 error: ${err6.message}`
+                `IPv4 error: ${err.message}, IPv6 error: ${err6.message}`,
+              { cause: ipv6Error }
             )
           }
         }
