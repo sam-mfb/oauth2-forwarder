@@ -12,6 +12,7 @@
     "lib": ["esnext"],
     "module": "CommonJS",
     "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
     "types": ["node", "vitest/globals"],
     "noEmit": true,
     "skipLibCheck": true
