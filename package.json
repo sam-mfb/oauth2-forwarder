@@ -46,7 +46,7 @@
     "prettier": "^3.9.4",
     "rimraf": "^6.0.1",
     "ts-loader": "^9.5.2",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.62.1",
     "vitest": "^4.1.9",
     "webpack": "^5.108.3",
