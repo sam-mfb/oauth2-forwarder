@@ -1,6 +1,6 @@
 {
   "name": "oauth2-forwarder",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "utilities for forwarding oauth2 interactive flow (e.g. container to host)",
   "main": "dist/index.js",
   "bin": {
@@ -68,8 +68,8 @@
     "picomatch@<=2.3.1": "2.3.2",
     "picomatch@>=4.0.0 <=4.0.3": "4.0.4",
     "postcss": "8.5.26",
-    "vite@>=7.0.0 <7.3.5": "7.3.5",
-    "esbuild@>=0.27.3 <0.28.1": "0.28.1",
+    "vite@>=7.0.0 <7.3.7": "7.3.7",
+    "esbuild@>=0.27.3 <0.28.1": "0.28.2",
     "fast-uri@>=3.0.0 <3.1.8": "3.1.8",
     "browserslist@<=4.28.6": "4.28.9",
     "baseline-browser-mapping@>=2.0.0 <2.11.0": "2.11.21"
