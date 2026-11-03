@@ -226,8 +226,7 @@ describe("buildInteractiveLogin — callback capture", () => {
       })
 
     let firstRequestPromise:
-      | Promise<{ status: number; body: string }>
-      | undefined
+      Promise<{ status: number; body: string }> | undefined
 
     const interactiveLogin = buildInteractiveLogin({
       openBrowser: async () => {

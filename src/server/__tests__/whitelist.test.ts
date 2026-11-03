@@ -18,7 +18,9 @@ import { resolveConfigFile, getPreferredConfigDescription } from "../../paths"
 
 const mockFs = vi.mocked(fs)
 const mockResolveConfigFile = vi.mocked(resolveConfigFile)
-const mockGetPreferredConfigDescription = vi.mocked(getPreferredConfigDescription)
+const mockGetPreferredConfigDescription = vi.mocked(
+  getPreferredConfigDescription
+)
 
 describe("whitelist", () => {
   beforeEach(() => {
@@ -27,7 +29,9 @@ describe("whitelist", () => {
       path: "/home/testuser/.oauth2-forwarder/whitelist.json",
       isLegacy: false
     })
-    mockGetPreferredConfigDescription.mockReturnValue("~/.config/oauth2-forwarder/")
+    mockGetPreferredConfigDescription.mockReturnValue(
+      "~/.config/oauth2-forwarder/"
+    )
   })
 
   describe("loadWhitelist", () => {
@@ -104,7 +108,12 @@ describe("whitelist", () => {
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
-          domains: ["login.microsoftonline.com", "", "  ", "accounts.google.com"]
+          domains: [
+            "login.microsoftonline.com",
+            "",
+            "  ",
+            "accounts.google.com"
+          ]
         })
       )
 
@@ -296,9 +305,7 @@ describe("whitelist", () => {
   describe("getDomain", () => {
     it("extracts hostname from valid URL", () => {
       expect(
-        getDomain(
-          "https://login.microsoftonline.com/tenant/oauth2/authorize"
-        )
+        getDomain("https://login.microsoftonline.com/tenant/oauth2/authorize")
       ).toBe("login.microsoftonline.com")
     })
 
@@ -313,5 +320,4 @@ describe("whitelist", () => {
       expect(getDomain("")).toBe(null)
     })
   })
-
 })

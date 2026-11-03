@@ -63,7 +63,11 @@ describe("paths", () => {
       const result = getLogDir()
 
       expect(result).toBe(
-        path.join("C:\\Users\\testuser\\AppData\\Local", "oauth2-forwarder", "logs")
+        path.join(
+          "C:\\Users\\testuser\\AppData\\Local",
+          "oauth2-forwarder",
+          "logs"
+        )
       )
     })
 
@@ -73,7 +77,13 @@ describe("paths", () => {
       const result = getLogDir()
 
       expect(result).toBe(
-        path.join("/home/testuser", "AppData", "Local", "oauth2-forwarder", "logs")
+        path.join(
+          "/home/testuser",
+          "AppData",
+          "Local",
+          "oauth2-forwarder",
+          "logs"
+        )
       )
     })
   })
@@ -156,7 +166,9 @@ describe("paths", () => {
 
       const result = resolveConfigFile("whitelist.json")
 
-      expect(result.path).toBe("/home/testuser/.oauth2-forwarder/whitelist.json")
+      expect(result.path).toBe(
+        "/home/testuser/.oauth2-forwarder/whitelist.json"
+      )
       expect(result.isLegacy).toBe(true)
     })
 

@@ -39,13 +39,15 @@ function getLogDirectory(): string {
 
     case "win32": {
       // Windows: %LOCALAPPDATA%\oauth2-forwarder\logs\
-      const localAppData = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local")
+      const localAppData =
+        process.env.LOCALAPPDATA || path.join(home, "AppData", "Local")
       return path.join(localAppData, APP_NAME, "logs")
     }
 
     default: {
       // Linux and others: $XDG_STATE_HOME/oauth2-forwarder/ (default: ~/.local/state/oauth2-forwarder/)
-      const xdgStateHome = process.env.XDG_STATE_HOME || path.join(home, ".local", "state")
+      const xdgStateHome =
+        process.env.XDG_STATE_HOME || path.join(home, ".local", "state")
       return path.join(xdgStateHome, APP_NAME)
     }
   }
@@ -62,13 +64,15 @@ function getConfigDirectory(): string {
 
     case "win32": {
       // Windows: %LOCALAPPDATA%\oauth2-forwarder\
-      const localAppData = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local")
+      const localAppData =
+        process.env.LOCALAPPDATA || path.join(home, "AppData", "Local")
       return path.join(localAppData, APP_NAME)
     }
 
     default: {
       // Linux and others: $XDG_CONFIG_HOME/oauth2-forwarder/ (default: ~/.config/oauth2-forwarder/)
-      const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(home, ".config")
+      const xdgConfigHome =
+        process.env.XDG_CONFIG_HOME || path.join(home, ".config")
       return path.join(xdgConfigHome, APP_NAME)
     }
   }
@@ -120,7 +124,10 @@ export function getLegacyConfigDir(): string {
  * Resolves the config file path, checking legacy location first for backwards compatibility.
  * Returns both the path to use and whether it's using the legacy location.
  */
-export function resolveConfigFile(filename: string): { path: string; isLegacy: boolean } {
+export function resolveConfigFile(filename: string): {
+  path: string
+  isLegacy: boolean
+} {
   const legacyPath = path.join(getLegacyConfigDirectory(), filename)
   const preferredPath = path.join(getConfigDirectory(), filename)
 
