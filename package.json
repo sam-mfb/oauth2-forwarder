@@ -9,7 +9,7 @@
     "o2f-browser": "./browser-global.sh"
   },
   "scripts": {
-    "build": "rimraf ./dist && webpack && node prepend-shebang.js",
+    "build": "rimraf ./dist && webpack && node prepend-shebang.js && node check-bundle-paths.js",
     "zip-release": "./release.sh",
     "test": "vitest",
     "e2e-test": "vitest --config vitest.e2e.config.ts",
