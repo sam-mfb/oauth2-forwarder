@@ -4,7 +4,7 @@ import { RedirectResult, RedirectRequestOptions } from "../redirect-types"
 import { type Logger } from "../logger"
 
 const MAX_REDIRECTS = 10
-const TIMEOUT_MS = 30000
+const DEFAULT_TIMEOUT_MS = 30000
 
 type RequestResult = {
   statusCode: number
@@ -20,11 +20,16 @@ type RequestResult = {
  *
  * Supports both GET (response_mode=query) and POST (response_mode=form_post)
  * callback replay.
+ *
+ * Each individual request (connect, headers and full body) is bounded by
+ * `timeoutMs`, which defaults to 30 seconds when not given.
  */
 export function buildRedirect(deps: {
   logger: Logger
+  timeoutMs?: number
 }): (url: string, options?: RedirectRequestOptions) => Promise<RedirectResult> {
   const { logger } = deps
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
   const makeRequest = (
     url: string,
@@ -36,9 +41,15 @@ export function buildRedirect(deps: {
     hostHeader?: string
   ): Promise<RequestResult> => {
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Request timed out after ${TIMEOUT_MS}ms`))
-      }, TIMEOUT_MS)
+      // The timeout bounds the whole request, including the response body.
+      // It is cleared only once the request has settled.
+      let settled = false
+      const settle = (finish: () => void): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+        finish()
+      }
 
       const parsedUrl = new URL(url)
       // Strip brackets from IPv6 addresses - URL.hostname returns "[::1]" but
@@ -69,7 +80,6 @@ export function buildRedirect(deps: {
       }
 
       const req = http.request(options, res => {
-        clearTimeout(timeoutId)
         const chunks: Buffer[] = []
 
         res.on("data", (chunk: Buffer) => {
@@ -79,23 +89,33 @@ export function buildRedirect(deps: {
         res.on("end", () => {
           const body = Buffer.concat(chunks).toString("utf8")
           const location = res.headers.location
-          resolve({
-            statusCode: res.statusCode ?? 0,
-            location,
-            body
-          })
+          settle(() =>
+            resolve({
+              statusCode: res.statusCode ?? 0,
+              location,
+              body
+            })
+          )
         })
 
         res.on("error", error => {
-          reject(error)
+          settle(() => reject(error))
         })
       })
 
       req.on("error", error => {
-        clearTimeout(timeoutId)
+        if (settled) return
         logger.error(`Request error: ${JSON.stringify(error)}`)
-        reject(error)
+        settle(() => reject(error))
       })
+
+      const timeoutId = setTimeout(() => {
+        settle(() =>
+          reject(new Error(`Request timed out after ${timeoutMs}ms`))
+        )
+        // Abort the connection so a stalled server does not hold the socket
+        req.destroy()
+      }, timeoutMs)
 
       if (bodyBuffer) {
         req.write(bodyBuffer)

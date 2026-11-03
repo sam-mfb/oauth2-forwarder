@@ -500,4 +500,108 @@ describe("buildRedirect", () => {
       )
     })
   })
+
+  describe("request timeout", () => {
+    const TEST_TIMEOUT_MS = 100
+
+    // Starts a server whose handler is supplied by the test. Resolves with the
+    // port and a promise that resolves when the client's socket is closed.
+    const createStallingServer = (
+      handler: (req: http.IncomingMessage, res: http.ServerResponse) => void
+    ): Promise<{ port: number; socketClosed: Promise<void> }> => {
+      return new Promise((resolve, reject) => {
+        let onSocketClosed: () => void = () => {}
+        const socketClosed = new Promise<void>(r => {
+          onSocketClosed = r
+        })
+        server = http.createServer(handler)
+        server.on("connection", socket => {
+          socket.on("close", () => onSocketClosed())
+        })
+        server.on("error", reject)
+        server.listen(0, "127.0.0.1", () => {
+          const address = server?.address()
+          if (address && typeof address === "object") {
+            resolve({ port: address.port, socketClosed })
+          } else {
+            reject(new Error("Failed to get server port"))
+          }
+        })
+      })
+    }
+
+    it("should time out when the server sends headers but never finishes the body", async () => {
+      const { port, socketClosed } = await createStallingServer((req, res) => {
+        res.writeHead(200, { "Content-Type": "text/plain" })
+        res.write("partial")
+        // never call res.end()
+      })
+
+      const redirect = buildRedirect({
+        logger: buildNoOpLogger(),
+        timeoutMs: TEST_TIMEOUT_MS
+      })
+      const result = await redirect(`http://127.0.0.1:${port}/callback`)
+
+      expect(result).toEqual({
+        type: "error",
+        message: `Request timed out after ${TEST_TIMEOUT_MS}ms`
+      })
+      await socketClosed
+    })
+
+    it("should time out when the server never sends headers", async () => {
+      const { port, socketClosed } = await createStallingServer(() => {
+        // never respond
+      })
+
+      const redirect = buildRedirect({
+        logger: buildNoOpLogger(),
+        timeoutMs: TEST_TIMEOUT_MS
+      })
+      const result = await redirect(`http://127.0.0.1:${port}/callback`)
+
+      expect(result).toEqual({
+        type: "error",
+        message: `Request timed out after ${TEST_TIMEOUT_MS}ms`
+      })
+      await socketClosed
+    })
+
+    it("should time out when the server keeps sending body data without ending", async () => {
+      const { port, socketClosed } = await createStallingServer((req, res) => {
+        res.writeHead(200, { "Content-Type": "text/plain" })
+        const interval = setInterval(() => res.write("x"), 10)
+        res.on("close", () => clearInterval(interval))
+      })
+
+      const redirect = buildRedirect({
+        logger: buildNoOpLogger(),
+        timeoutMs: TEST_TIMEOUT_MS
+      })
+      const result = await redirect(`http://127.0.0.1:${port}/callback`)
+
+      expect(result).toEqual({
+        type: "error",
+        message: `Request timed out after ${TEST_TIMEOUT_MS}ms`
+      })
+      await socketClosed
+    })
+
+    it("should succeed when the full response arrives within the timeout", async () => {
+      const { port } = await createStallingServer((req, res) => {
+        res.writeHead(200, { "Content-Type": "text/plain" })
+        res.write("part1-")
+        setTimeout(() => res.end("part2"), 20)
+      })
+
+      const redirect = buildRedirect({
+        logger: buildNoOpLogger(),
+        timeoutMs: TEST_TIMEOUT_MS
+      })
+      const result = await redirect(`http://127.0.0.1:${port}/callback`)
+
+      expect(result).toEqual({ type: "success", body: "part1-part2" })
+    })
+  })
 })
