@@ -55,8 +55,7 @@ export type Oauth2AuthCodeRequestParams = Oauth2AuthCodeRequestStandardParams &
   Oauth2AuthCodeRequestNonStandardParams
 
 export type Oauth2AuthCodeRedirectParams =
-  | Oauth2AuthCodeRedirectSuccessParams
-  | Oauth2AuthCodeRedirectErrorParams
+  Oauth2AuthCodeRedirectSuccessParams | Oauth2AuthCodeRedirectErrorParams
 
 /**
  * Type reflecting the parameters of an Oauth2 auth code successful redirect

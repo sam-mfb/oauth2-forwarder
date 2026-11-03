@@ -18,7 +18,10 @@ const DEFAULT_MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
  *
  * Used by the server on startup.
  */
-export function rotateOnLaunch(logPath: string, maxFiles: number = DEFAULT_MAX_FILES): void {
+export function rotateOnLaunch(
+  logPath: string,
+  maxFiles: number = DEFAULT_MAX_FILES
+): void {
   // Ensure parent directory exists
   ensureDirectory(path.dirname(logPath))
 

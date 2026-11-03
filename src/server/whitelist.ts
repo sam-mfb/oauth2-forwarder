@@ -8,9 +8,7 @@ export { getDomain }
 const WHITELIST_FILE = "whitelist.json"
 
 export type WhitelistDisabledReason =
-  | "file-not-found"
-  | "empty-domains"
-  | "parse-error"
+  "file-not-found" | "empty-domains" | "parse-error"
 
 export type WhitelistConfig = {
   enabled: boolean
@@ -98,4 +96,3 @@ export function isUrlAllowed(url: string, config: WhitelistConfig): boolean {
   }
   return config.domains.has(hostname)
 }
-

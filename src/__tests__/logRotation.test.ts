@@ -1,6 +1,10 @@
 import fs from "fs"
 import { vi, type Mocked } from "vitest"
-import { rotateOnLaunch, rotateIfNeeded, createLogFileStream } from "../logRotation"
+import {
+  rotateOnLaunch,
+  rotateIfNeeded,
+  createLogFileStream
+} from "../logRotation"
 import { ensureDirectory } from "../paths"
 
 vi.mock("fs")

@@ -41,7 +41,12 @@ function formatTimestamp(): string {
  * Messages at or above the configured level will be output.
  */
 export function buildLogger(options: LoggerOptions): Logger {
-  const { level, stream = process.stderr, prefix = "", useFileFormat = false } = options
+  const {
+    level,
+    stream = process.stderr,
+    prefix = "",
+    useFileFormat = false
+  } = options
   const minPriority = LOG_LEVEL_PRIORITY[level]
 
   const log = (msgLevel: LogLevel, msg: string): void => {
@@ -58,7 +63,8 @@ export function buildLogger(options: LoggerOptions): Logger {
       } else {
         // Console format: colored, no timestamp
         const colorCode = LOG_LEVEL_COLORS[msgLevel] as AnsiColor
-        output = color(`${prefixStr}${levelStr} ${sanitizedMsg}`, colorCode) + "\n"
+        output =
+          color(`${prefixStr}${levelStr} ${sanitizedMsg}`, colorCode) + "\n"
       }
 
       stream.write(output)

@@ -71,7 +71,7 @@ export function parseOauth2Url(
     const validPromptValues = ["login", "none", "consent", "select_account"]
     const promptValues = params.prompt.split(" ").filter(Boolean)
     const invalidValues = promptValues.filter(
-      (v) => !validPromptValues.includes(v)
+      v => !validPromptValues.includes(v)
     )
     if (invalidValues.length > 0) {
       return Result.failure(
@@ -91,10 +91,7 @@ export function parseOauth2Url(
         "redirect_uri": params.redirect_uri as string,
         "scope": params.scope,
         "response_mode": params.response_mode as
-          | "query"
-          | "fragment"
-          | "form_post"
-          | undefined,
+          "query" | "fragment" | "form_post" | undefined,
         "state": params.state,
         "prompt": params.prompt,
         "login_hint": params.login_hint,
@@ -106,8 +103,7 @@ export function parseOauth2Url(
         "client_info": params.client_info,
         "code_challenge": params.code_challenge as string,
         "code_challenge_method": params.code_challenge_method as
-          | "S256"
-          | "plain"
+          "S256" | "plain"
       }
     : {
         "client_id": params.client_id as string,
@@ -115,10 +111,7 @@ export function parseOauth2Url(
         "redirect_uri": params.redirect_uri as string,
         "scope": params.scope,
         "response_mode": params.response_mode as
-          | "query"
-          | "fragment"
-          | "form_post"
-          | undefined,
+          "query" | "fragment" | "form_post" | undefined,
         "state": params.state,
         "prompt": params.prompt,
         "login_hint": params.login_hint,
