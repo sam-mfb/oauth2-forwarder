@@ -262,6 +262,10 @@ o2f-server --version
 # Output: o2f-server v1.6.0
 ```
 
+## Releasing
+
+Each GitHub release must include `oauth2-forwarder.zip`, because the installation instructions above download it. See [RELEASING.md](RELEASING.md) for the full release steps, including how to build and attach the zip.
+
 ## Security
 
 Since this is using all localhost tcp communications the security model is the same using this tool as it is in the non-containerized solution. In other words, in both cases the received auth code is transmitted over plaintext tcp on the localhost only. NB: you could modify this tool to send the client<-->server traffic across the network, but that would not be a good idea.
