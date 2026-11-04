@@ -17,12 +17,48 @@ type PendingRequest = {
   domain: string
 }
 
+/**
+ * Node throws when a status message contains a character it doesn't allow,
+ * such as a newline or a non-Latin-1 character copied from a malformed URL.
+ * Replace everything outside printable ASCII so that a bad request can
+ * always be answered.
+ */
+export function toStatusMessage(reason: string): string {
+  return reason.replace(/[^\t\x20-\x7e]/g, "?")
+}
+
+const describeError = (error: unknown): string =>
+  error instanceof Error ? error.message : JSON.stringify(error)
+
+/**
+ * Answer a request with an error status. If the response has already
+ * started or the connection is gone, the request can't be answered, so
+ * the connection is closed instead.
+ */
+const sendStatus = (
+  res: http.ServerResponse,
+  statusCode: number,
+  reason?: string
+): void => {
+  if (res.headersSent || res.destroyed) {
+    res.destroy()
+    return
+  }
+  if (reason === undefined) {
+    res.writeHead(statusCode)
+  } else {
+    res.writeHead(statusCode, toStatusMessage(reason))
+  }
+  res.end()
+}
+
 export function buildCredentialProxy(deps: {
   host: string
   port: number
   interactiveLogin: (
     url: string,
-    responsePort: number
+    responsePort: number,
+    signal?: AbortSignal
   ) => Promise<InteractiveLoginResult>
   openBrowser: (url: string) => Promise<void>
   passthrough: boolean
@@ -54,8 +90,7 @@ export function buildCredentialProxy(deps: {
         ? "Whitelist rejection (passthrough)"
         : "Whitelist rejection"
       logger.warn(`${logPrefix}: ${reason}`)
-      res.writeHead(403, reason)
-      res.end()
+      sendStatus(res, 403, reason)
       return true
     }
 
@@ -80,11 +115,17 @@ export function buildCredentialProxy(deps: {
 
         const path = req.url ?? "/"
 
-        // Route based on path
-        if (path === "/complete") {
-          handleComplete(rawBody, res)
-        } else {
-          handleOauth2(rawBody, res)
+        // Request boundary: an unexpected error while handling one request
+        // fails that request only, and the server keeps running.
+        try {
+          if (path === "/complete") {
+            handleComplete(rawBody, res)
+          } else {
+            handleOauth2(rawBody, res)
+          }
+        } catch (error) {
+          logger.error(`Error handling request: ${describeError(error)}`)
+          sendStatus(res, 500, "Internal server error")
         }
       })
     })
@@ -101,16 +142,14 @@ export function buildCredentialProxy(deps: {
       } catch {
         const reason = "Invalid JSON in completion request body"
         logger.warn(reason)
-        res.writeHead(400, reason)
-        res.end()
+        sendStatus(res, 400, reason)
         return
       }
 
       if (!report.requestId || !report.result) {
         const reason = "Completion request missing requestId or result"
         logger.warn(reason)
-        res.writeHead(400, reason)
-        res.end()
+        sendStatus(res, 400, reason)
         return
       }
 
@@ -118,8 +157,7 @@ export function buildCredentialProxy(deps: {
       if (!pending) {
         const reason = `No pending request found for requestId: ${report.requestId}`
         logger.warn(reason)
-        res.writeHead(404, reason)
-        res.end()
+        sendStatus(res, 404, reason)
         return
       }
 
@@ -143,8 +181,7 @@ export function buildCredentialProxy(deps: {
       } catch {
         const reason = "Invalid JSON in request body"
         logger.warn(reason)
-        res.writeHead(400, reason)
-        res.end()
+        sendStatus(res, 400, reason)
         return
       }
 
@@ -165,14 +202,14 @@ export function buildCredentialProxy(deps: {
             deps.openBrowser(deserializedBody.url).catch(err => {
               logger.error(`Failed to open browser: ${err}`)
             })
-            res.writeHead(
+            sendStatus(
+              res,
               400,
               `${oauthParamsResponse.error.message}; URL opened in browser (passthrough mode)`
             )
           } else {
-            res.writeHead(400, oauthParamsResponse.error.message)
+            sendStatus(res, 400, oauthParamsResponse.error.message)
           }
-          res.end()
           return
         }
         oauthParams = oauthParamsResponse.value
@@ -186,8 +223,7 @@ export function buildCredentialProxy(deps: {
       } else {
         const reason = "Received body does not contain a 'url' property"
         logger.warn(reason)
-        res.writeHead(400, reason)
-        res.end()
+        sendStatus(res, 400, reason)
         return
       }
       const portResult = extractPort(oauthParams.redirect_uri)
@@ -202,14 +238,14 @@ export function buildCredentialProxy(deps: {
           deps.openBrowser(deserializedBody.url).catch(err => {
             logger.error(`Failed to open browser: ${err}`)
           })
-          res.writeHead(
+          sendStatus(
+            res,
             400,
             `${portResult.error.message}; URL opened in browser (passthrough mode)`
           )
         } else {
-          res.writeHead(400, portResult.error.message)
+          sendStatus(res, 400, portResult.error.message)
         }
-        res.end()
         return
       }
       const port = portResult.value ?? 80
@@ -217,8 +253,21 @@ export function buildCredentialProxy(deps: {
 
       const domain = getDomain(deserializedBody.url) ?? "unknown"
       logger.info(`Received OAuth request for ${domain}`)
+
+      // If the client disconnects before it gets an answer, cancel its
+      // login so the temporary listener releases the port.
+      const loginAbort = new AbortController()
+      res.on("close", () => {
+        if (!res.writableFinished) {
+          logger.info(
+            `Client disconnected before login finished for ${domain}, cancelling it`
+          )
+          loginAbort.abort()
+        }
+      })
+
       deps
-        .interactiveLogin(deserializedBody.url, port)
+        .interactiveLogin(deserializedBody.url, port, loginAbort.signal)
         .then(
           ({
             callbackUrl,
@@ -231,6 +280,20 @@ export function buildCredentialProxy(deps: {
             logger.debug(
               `Interactive login received callback, requestId: ${requestId}`
             )
+
+            // The client left after the browser callback arrived. No one
+            // can complete this login, so answer the browser now instead of
+            // holding it until the TTL expires.
+            if (res.destroyed) {
+              logger.warn(
+                `Client disconnected before receiving callback for ${domain}`
+              )
+              complete({
+                type: "error",
+                message: "The client disconnected before login completed"
+              })
+              return
+            }
 
             // Store the completion handler with TTL timeout for cleanup
             const timeoutId = setTimeout(() => {
@@ -292,10 +355,10 @@ export function buildCredentialProxy(deps: {
             res.end(JSON.stringify(responseBody))
           }
         )
-        .catch(error => {
-          logger.error(`Interactive login error: "${JSON.stringify(error)}"`)
-          res.writeHead(500, JSON.stringify(error))
-          res.end()
+        .catch((error: unknown) => {
+          const message = describeError(error)
+          logger.error(`Interactive login error: "${message}"`)
+          sendStatus(res, 500, message)
         })
     }
 
