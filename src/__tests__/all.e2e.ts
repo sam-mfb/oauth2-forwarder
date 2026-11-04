@@ -1224,3 +1224,109 @@ describe("crash containment", () => {
     close()
   })
 })
+
+describe("request decoding and startup errors", () => {
+  it("decodes a multi-byte character split across TCP chunks (regression)", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    let receivedUrl: string | undefined
+    const server = buildCredentialProxy({
+      host: LOCALHOST,
+      port,
+      interactiveLogin: async url => {
+        receivedUrl = url
+        throw new Error("stop after capturing the URL")
+      },
+      openBrowser: async () => {},
+      passthrough: false,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
+    })
+    const { close } = await server()
+
+    const url = `${createTestUrl(redirectPort)}&login_hint=josé`
+    const body = Buffer.from(JSON.stringify({ url }), "utf8")
+    // "é" is two bytes in UTF-8. Split the body between them.
+    const splitAt = body.indexOf(Buffer.from("é", "utf8")) + 1
+    await new Promise<void>((resolve, reject) => {
+      const req = http.request(
+        { hostname: LOCALHOST, port, path: "/", method: "POST" },
+        res => {
+          res.resume()
+          res.on("end", () => resolve())
+        }
+      )
+      req.on("error", reject)
+      req.setNoDelay(true)
+      req.write(body.subarray(0, splitAt))
+      // Give the first chunk time to arrive on its own.
+      setTimeout(() => req.end(body.subarray(splitAt)), 50)
+    })
+    close()
+
+    expect(receivedUrl).toBe(url)
+  })
+
+  it("rejects with the reason when the server's port is in use", async () => {
+    const port = getNextPort()
+    const occupier = net.createServer()
+    await new Promise<void>(resolve =>
+      occupier.listen(port, LOCALHOST, () => resolve())
+    )
+    const server = buildCredentialProxy({
+      host: LOCALHOST,
+      port,
+      interactiveLogin: async () => {
+        throw new Error("Should not call")
+      },
+      openBrowser: async () => {},
+      passthrough: false,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
+    })
+
+    try {
+      await expect(server()).rejects.toThrow(
+        new RegExp(`Could not listen on ${LOCALHOST}:${port}: .*EADDRINUSE`)
+      )
+    } finally {
+      occupier.close()
+    }
+  })
+
+  it.each([
+    { name: "invalid JSON", body: "not json", reason: /not valid JSON/ },
+    { name: "JSON null", body: "null", reason: /not a JSON object/ },
+    {
+      name: "a non-string url",
+      body: JSON.stringify({ url: 5, requestId: "r" }),
+      reason: /'url'/
+    }
+  ])(
+    "the client rejects, rather than crashing, when the server answers 200 with $name",
+    async ({ body, reason }) => {
+      const port = getNextPort()
+      const fakeServer = http.createServer((_req, res) => {
+        res.writeHead(200)
+        res.end(body)
+      })
+      await new Promise<void>(resolve =>
+        fakeServer.listen(port, LOCALHOST, () => resolve())
+      )
+      const forwarder = buildCredentialForwarder({
+        host: LOCALHOST,
+        port,
+        redirect: async () => ({ type: "success" }),
+        logger: NO_OP_LOGGER
+      })
+
+      try {
+        await expect(forwarder(createTestUrl(getNextPort()))).rejects.toMatch(
+          reason
+        )
+      } finally {
+        fakeServer.close()
+      }
+    }
+  )
+})

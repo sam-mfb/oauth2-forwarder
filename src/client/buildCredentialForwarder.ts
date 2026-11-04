@@ -60,12 +60,25 @@ export function buildCredentialForwarder(deps: {
             return
           }
           logger.debug(`Final output: "${outputRaw}"`)
-          const outputSerialized = JSON.parse(outputRaw)
-          if (!("url" in outputSerialized)) {
+          // Parse inside try/catch: a throw in this event handler would
+          // escape the promise and crash the client.
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(outputRaw)
+          } catch {
+            reject("Response was not valid JSON")
+            return
+          }
+          if (typeof parsed !== "object" || parsed === null) {
+            reject("Response was not a JSON object")
+            return
+          }
+          const outputSerialized = parsed as Record<string, unknown>
+          if (typeof outputSerialized.url !== "string") {
             reject("Response did not contain 'url' property")
             return
           }
-          if (!("requestId" in outputSerialized)) {
+          if (typeof outputSerialized.requestId !== "string") {
             reject("Response did not contain 'requestId' property")
             return
           }

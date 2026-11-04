@@ -7,6 +7,7 @@ import { CompletionReport, RedirectResult } from "../redirect-types"
 import { InteractiveLoginResult } from "./buildInteractiveLogin"
 import { WhitelistConfig, isUrlAllowed, getDomain } from "./whitelist"
 import { type Logger } from "../logger"
+import { describeError } from "../describeError"
 
 // Default TTL: 5 minutes for pending requests before cleanup
 const DEFAULT_PENDING_REQUEST_TTL_MS = 5 * 60 * 1000
@@ -26,9 +27,6 @@ type PendingRequest = {
 export function toStatusMessage(reason: string): string {
   return reason.replace(/[^\t\x20-\x7e]/g, "?")
 }
-
-const describeError = (error: unknown): string =>
-  error instanceof Error ? error.message : JSON.stringify(error)
 
 /**
  * Answer a request with an error status. If the response has already
@@ -110,7 +108,9 @@ export function buildCredentialProxy(deps: {
       })
       req.on("end", () => {
         logger.debug("Request ended")
-        const rawBody = rawData.join("")
+        // Decode the whole body at once: decoding chunk by chunk corrupts a
+        // multi-byte character that is split across two chunks.
+        const rawBody = Buffer.concat(rawData).toString("utf8")
         logger.debug(`Received body: "${rawBody}"`)
 
         const path = req.url ?? "/"
@@ -363,7 +363,22 @@ export function buildCredentialProxy(deps: {
     }
 
     logger.debug("Starting credential proxy...")
-    server.listen(deps.port, deps.host)
+    // Resolve once the server is listening, and reject if it can't (for
+    // example when the port is already in use).
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error): void => {
+        reject(
+          new Error(
+            `Could not listen on ${deps.host}:${deps.port}: ${error.message}`
+          )
+        )
+      }
+      server.once("error", onError)
+      server.listen(deps.port, deps.host, () => {
+        server.off("error", onError)
+        resolve()
+      })
+    })
     return {
       close: () => {
         // Clear all pending request timeouts on shutdown
