@@ -1,6 +1,9 @@
+import http from "http"
+import net from "net"
 import {
   createTestHarness,
   createTestHarnessWithCustomContainer,
+  createMockBrowserCallback,
   createMockContainer,
   getNextPort,
   sendRawRequest,
@@ -15,6 +18,7 @@ import {
 import { WhitelistConfig } from "../server/whitelist"
 import { buildNoOpLogger } from "./test-logger"
 import { buildRedirect } from "../client/buildRedirect"
+import { RedirectResult } from "../redirect-types"
 
 // Disabled whitelist for e2e tests
 const DISABLED_WHITELIST: WhitelistConfig = {
@@ -921,6 +925,302 @@ describe("timeout handling", () => {
     )
 
     expect(completeResponse.statusCode).toEqual(200)
+    close()
+  })
+})
+
+// Sends an OAuth request to the server and abandons it after `abortAfterMs`,
+// like a user pressing Ctrl+C on the tool in the container.
+function sendAbandonedRequest(
+  port: number,
+  body: string,
+  abortAfterMs: number
+): Promise<void> {
+  return new Promise(resolve => {
+    const req = http.request({
+      hostname: LOCALHOST,
+      port,
+      path: "/",
+      method: "POST"
+    })
+    req.on("error", () => {
+      // Expected: the request is destroyed below.
+    })
+    req.end(body)
+    setTimeout(() => {
+      req.destroy()
+      resolve()
+    }, abortAfterMs)
+  })
+}
+
+const isPortFree = (port: number): Promise<boolean> =>
+  new Promise(resolve => {
+    const srv = net.createServer()
+    srv.once("error", () => resolve(false))
+    srv.listen(port, LOCALHOST, () => srv.close(() => resolve(true)))
+  })
+
+// Polls until the condition holds or the timeout passes.
+async function waitFor(
+  condition: () => Promise<boolean>,
+  timeoutMs: number = 1000
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await condition()) {
+      return true
+    }
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  return condition()
+}
+
+describe("crash containment", () => {
+  // Builds a server whose real interactive login opens the "browser" for
+  // each request. Only browser opens listed in `completing` deliver the
+  // OAuth callback; the others behave like a user who never finishes.
+  function buildServer(
+    port: number,
+    completing: number[]
+  ): {
+    server: () => Promise<{ close: () => void }>
+    browserOpens: () => number
+  } {
+    const callback = createMockBrowserCallback({ code: TEST_CODE })
+    let opens = 0
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async url => {
+        opens++
+        if (completing.includes(opens)) {
+          await callback(url)
+        }
+      },
+      logger: NO_OP_LOGGER
+    })
+    return {
+      server: buildCredentialProxy({
+        host: LOCALHOST,
+        port,
+        interactiveLogin,
+        openBrowser: async () => {},
+        passthrough: false,
+        whitelist: DISABLED_WHITELIST,
+        logger: NO_OP_LOGGER
+      }),
+      browserOpens: () => opens
+    }
+  }
+
+  function buildClient(port: number): (url: string) => Promise<string> {
+    const forwarder = buildCredentialForwarder({
+      host: LOCALHOST,
+      port,
+      redirect: async () => ({ type: "success" }),
+      logger: NO_OP_LOGGER
+    })
+    return async url => {
+      const result = await forwarder(url)
+      return result.type
+    }
+  }
+
+  it("a request cancelled mid-login, then an identical request, succeeds (regression)", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    const { server, browserOpens } = buildServer(port, [2])
+    const { close } = await server()
+    const url = createTestUrl(redirectPort)
+
+    await sendAbandonedRequest(port, JSON.stringify({ url }), 50)
+    expect(browserOpens()).toBe(1)
+    // The cancelled login releases the redirect port.
+    expect(await waitFor(() => isPortFree(redirectPort))).toBe(true)
+
+    expect(await buildClient(port)(url)).toBe("success")
+    close()
+  })
+
+  it("an identical request while the first is still waiting supersedes it with a clear error", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    const { server } = buildServer(port, [2])
+    const { close } = await server()
+    const url = createTestUrl(redirectPort)
+
+    const first = sendRawRequest(port, JSON.stringify({ url }))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const second = buildClient(port)(url)
+
+    const firstResponse = await first
+    expect(firstResponse.statusCode).toBe(500)
+    expect(firstResponse.statusMessage).toMatch(/superseded/i)
+    expect(await second).toBe("success")
+    close()
+  })
+
+  it("a request that can't bind its redirect port fails alone, and the next request succeeds", async () => {
+    const port = getNextPort()
+    const busyPort = getNextPort()
+    const redirectPort = getNextPort()
+    const occupier = net.createServer()
+    await new Promise<void>(resolve =>
+      occupier.listen(busyPort, LOCALHOST, () => resolve())
+    )
+    const { server } = buildServer(port, [1])
+    const { close } = await server()
+
+    const response = await sendRawRequest(
+      port,
+      JSON.stringify({ url: createTestUrl(busyPort) })
+    )
+    expect(response.statusCode).toBe(500)
+    expect(response.statusMessage).toMatch(/EADDRINUSE/)
+
+    expect(await buildClient(port)(createTestUrl(redirectPort))).toBe("success")
+    occupier.close()
+    close()
+  })
+
+  it("a browser that fails to open fails that request alone", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    const callback = createMockBrowserCallback({ code: TEST_CODE })
+    let opens = 0
+    const server = buildCredentialProxy({
+      host: LOCALHOST,
+      port,
+      interactiveLogin: buildInteractiveLogin({
+        openBrowser: async url => {
+          opens++
+          if (opens === 1) {
+            throw new Error("no browser available")
+          }
+          await callback(url)
+        },
+        logger: NO_OP_LOGGER
+      }),
+      openBrowser: async () => {},
+      passthrough: false,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
+    })
+    const { close } = await server()
+    const url = createTestUrl(redirectPort)
+
+    const response = await sendRawRequest(port, JSON.stringify({ url }))
+    expect(response.statusCode).toBe(500)
+    expect(response.statusMessage).toMatch(/failed to open browser/i)
+
+    expect(await buildClient(port)(url)).toBe("success")
+    close()
+  })
+
+  it.each([
+    {
+      name: "a malformed URL with a non-Latin-1 character",
+      path: "/",
+      body: JSON.stringify({ url: "not a url \u2603" }),
+      status: 400
+    },
+    {
+      name: "a malformed URL with a newline",
+      path: "/",
+      body: JSON.stringify({ url: "not a url\nX-Injected: 1" }),
+      status: 400
+    },
+    { name: "a JSON null body", path: "/", body: "null", status: 500 },
+    {
+      name: "a JSON null body on /complete",
+      path: "/complete",
+      body: "null",
+      status: 500
+    }
+  ])(
+    "$name gets an error response, and the next request succeeds",
+    async ({ path, body, status }) => {
+      const port = getNextPort()
+      const redirectPort = getNextPort()
+      const { server } = buildServer(port, [1])
+      const { close } = await server()
+
+      const response = await sendRawRequest(port, body, path)
+      expect(response.statusCode).toBe(status)
+
+      expect(await buildClient(port)(createTestUrl(redirectPort))).toBe(
+        "success"
+      )
+      close()
+    }
+  )
+
+  it("a completion the browser can't receive fails alone, and the next request succeeds", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    const { server } = buildServer(port, [1, 2])
+    const { close } = await server()
+    const url = createTestUrl(redirectPort)
+
+    // Bypass the client so the test can send a bad completion.
+    const response = await sendRawRequest(port, JSON.stringify({ url }))
+    expect(response.statusCode).toBe(200)
+    const { requestId } = JSON.parse(response.body) as { requestId: string }
+    const completion = await sendRawRequest(
+      port,
+      JSON.stringify({
+        requestId,
+        result: { type: "redirect", location: "http://x/\u2603" }
+      }),
+      "/complete"
+    )
+    expect(completion.statusCode).toBe(500)
+
+    expect(await buildClient(port)(url)).toBe("success")
+    close()
+  })
+
+  it("answers the browser with an error if the client leaves after the callback arrives", async () => {
+    const port = getNextPort()
+    const redirectPort = getNextPort()
+    let completedWith: RedirectResult | undefined
+    // A login that ignores the abort signal and delivers its callback after
+    // the client has already gone.
+    const server = buildCredentialProxy({
+      host: LOCALHOST,
+      port,
+      interactiveLogin: async (_url, responsePort) => {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        return {
+          callbackUrl: `http://localhost:${responsePort}/?code=${TEST_CODE}`,
+          callbackMethod: "GET" as const,
+          requestId: "late",
+          complete: result => {
+            completedWith = result
+          }
+        }
+      },
+      openBrowser: async () => {},
+      passthrough: false,
+      whitelist: DISABLED_WHITELIST,
+      logger: NO_OP_LOGGER
+    })
+    const { close } = await server()
+
+    await sendAbandonedRequest(
+      port,
+      JSON.stringify({ url: createTestUrl(redirectPort) }),
+      20
+    )
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(completedWith?.type).toBe("error")
+
+    // Nothing was left pending for the abandoned request.
+    const completion = await sendRawRequest(
+      port,
+      JSON.stringify({ requestId: "late", result: { type: "success" } }),
+      "/complete"
+    )
+    expect(completion.statusCode).toBe(404)
     close()
   })
 })

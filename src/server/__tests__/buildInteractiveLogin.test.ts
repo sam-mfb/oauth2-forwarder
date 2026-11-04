@@ -260,3 +260,189 @@ describe("buildInteractiveLogin — callback capture", () => {
     agent.destroy()
   })
 })
+
+// Resolves true if the port can be bound, i.e. no listener still holds it.
+const isPortFree = (port: number): Promise<boolean> =>
+  new Promise(resolve => {
+    const srv = net.createServer()
+    srv.once("error", () => resolve(false))
+    srv.listen(port, LOCALHOST, () => srv.close(() => resolve(true)))
+  })
+
+// Simulates the browser delivering the OAuth callback to the temporary
+// listener. Resolves with the held response once complete() answers it.
+const sendCallback = (
+  port: number
+): Promise<{ status: number; headers: http.IncomingHttpHeaders }> =>
+  new Promise((resolve, reject) => {
+    const req = http.request(
+      { hostname: LOCALHOST, port, path: "/?code=abc", method: "GET" },
+      res => {
+        res.resume()
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, headers: res.headers })
+        )
+      }
+    )
+    req.on("error", reject)
+    req.end()
+  })
+
+describe("buildInteractiveLogin — failure containment and cleanup", () => {
+  it("rejects, rather than crashing, when another program holds the port", async () => {
+    const port = await getRandomPort()
+    const occupier = net.createServer()
+    await new Promise<void>(resolve =>
+      occupier.listen(port, LOCALHOST, () => resolve())
+    )
+    let browserOpened = false
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        browserOpened = true
+      },
+      logger: buildNoOpLogger()
+    })
+
+    try {
+      await expect(interactiveLogin(OAUTH_URL, port)).rejects.toThrow(
+        /could not listen.*EADDRINUSE/i
+      )
+      expect(browserOpened).toBe(false)
+    } finally {
+      await new Promise(resolve => occupier.close(resolve))
+    }
+  })
+
+  it("rejects and releases the port when openBrowser rejects", async () => {
+    const port = await getRandomPort()
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        throw new Error("no browser available")
+      },
+      logger: buildNoOpLogger()
+    })
+
+    await expect(interactiveLogin(OAUTH_URL, port)).rejects.toThrow(
+      /failed to open browser: no browser available/i
+    )
+    expect(await isPortFree(port)).toBe(true)
+  })
+
+  it("rejects and releases the port when openBrowser throws synchronously", async () => {
+    const port = await getRandomPort()
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: () => {
+        throw new Error("spawn failed")
+      },
+      logger: buildNoOpLogger()
+    })
+
+    await expect(interactiveLogin(OAUTH_URL, port)).rejects.toThrow(
+      /failed to open browser: spawn failed/i
+    )
+    expect(await isPortFree(port)).toBe(true)
+  })
+
+  it("rejects and releases the port when the signal aborts", async () => {
+    const port = await getRandomPort()
+    const controller = new AbortController()
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        controller.abort()
+      },
+      logger: buildNoOpLogger()
+    })
+
+    await expect(
+      interactiveLogin(OAUTH_URL, port, controller.signal)
+    ).rejects.toThrow(/cancelled/i)
+    expect(await isPortFree(port)).toBe(true)
+  })
+
+  it("rejects without listening when the signal is already aborted", async () => {
+    const port = await getRandomPort()
+    let browserOpened = false
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        browserOpened = true
+      },
+      logger: buildNoOpLogger()
+    })
+
+    await expect(
+      interactiveLogin(OAUTH_URL, port, AbortSignal.abort())
+    ).rejects.toThrow(/cancelled/i)
+    expect(browserOpened).toBe(false)
+    expect(await isPortFree(port)).toBe(true)
+  })
+
+  it("a new login on the same port supersedes one still waiting for its callback", async () => {
+    const port = await getRandomPort()
+    let browserOpens = 0
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        browserOpens++
+        // Only the second login's browser delivers the callback.
+        if (browserOpens === 2) {
+          void sendCallback(port)
+        }
+      },
+      logger: buildNoOpLogger()
+    })
+
+    const first = interactiveLogin(OAUTH_URL, port)
+    const firstOutcome = first.catch((error: Error) => error)
+    // Let the first listener start before the second request arrives.
+    await new Promise(resolve => setTimeout(resolve, 20))
+    const second = interactiveLogin(OAUTH_URL, port)
+
+    const firstError = await firstOutcome
+    expect(firstError).toBeInstanceOf(Error)
+    expect((firstError as Error).message).toMatch(/superseded/i)
+    const result = await second
+    expect(result.callbackUrl).toContain("/?code=abc")
+    result.complete({ type: "success" })
+  })
+
+  it("a new login on the same port does not disturb one that already has its callback", async () => {
+    const port = await getRandomPort()
+    let browserOpens = 0
+    const callbacks: Array<Promise<{ status: number }>> = []
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        browserOpens++
+        callbacks.push(sendCallback(port))
+      },
+      logger: buildNoOpLogger()
+    })
+
+    const first = await interactiveLogin(OAUTH_URL, port)
+    const second = await interactiveLogin(OAUTH_URL, port)
+    expect(browserOpens).toBe(2)
+
+    first.complete({ type: "success" })
+    second.complete({ type: "success" })
+    const [firstBrowser, secondBrowser] = await Promise.all(callbacks)
+    expect(firstBrowser?.status).toBe(200)
+    expect(secondBrowser?.status).toBe(200)
+  })
+
+  it("complete() closes the browser connection and throws when the response is invalid", async () => {
+    const port = await getRandomPort()
+    let browser: Promise<unknown> | undefined
+    const interactiveLogin = buildInteractiveLogin({
+      openBrowser: async () => {
+        browser = sendCallback(port).catch((error: Error) => error)
+      },
+      logger: buildNoOpLogger()
+    })
+
+    const result = await interactiveLogin(OAUTH_URL, port)
+    expect(() =>
+      result.complete({ type: "redirect", location: "http://x/☃" })
+    ).toThrow(/invalid character/i)
+    const browserOutcome = await browser
+    expect(browserOutcome).toBeInstanceOf(Error)
+    expect((browserOutcome as Error).message).toMatch(/socket hang up/i)
+  })
+})
