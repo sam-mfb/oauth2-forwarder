@@ -8,6 +8,7 @@ import { buildInteractiveLogin } from "./buildInteractiveLogin"
 import { buildCredentialProxy } from "./buildCredentialProxy"
 import { findAvailablePort } from "./findAvailablePort"
 import { loadWhitelist } from "./whitelist"
+import { describeError } from "../describeError"
 import open from "open"
 
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
@@ -167,15 +168,15 @@ const interactiveLogin = buildInteractiveLogin({
   }
 
   try {
-    // note even though this is async it only awaits the start of the server--execution will proceed
-    // after the server successfully starts
+    // Resolves once the server is listening; requests are then handled in
+    // the background.
     await credentialProxy()
     logger.info("Server started. Press Ctrl+C to stop.")
   } catch (err) {
-    logger.error(JSON.stringify(err))
+    logger.error(describeError(err))
     process.exit(1)
   }
 })().catch(err => {
-  logger.error(JSON.stringify(err))
+  logger.error(describeError(err))
   process.exit(1)
 })
