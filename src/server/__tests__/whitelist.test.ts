@@ -258,6 +258,50 @@ describe("whitelist", () => {
     })
   })
 
+  describe("loadWhitelist broad wildcard entries", () => {
+    it("reports wildcards with a single-label suffix as broad", () => {
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          domains: ["*.com", "*.CO", "*.chatgpt.site", "example.com"]
+        })
+      )
+
+      const config = loadWhitelist()
+
+      expect(config.broadEntries).toEqual(["*.com", "*.co"])
+      expect(config.invalidEntries).toEqual([])
+    })
+
+    it("does not report malformed wildcards as broad", () => {
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ domains: ["*com", "*.", "*"] })
+      )
+
+      expect(loadWhitelist().broadEntries).toEqual([])
+    })
+
+    it("still allows hostnames matched by a broad wildcard", () => {
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ domains: ["*.com"] })
+      )
+
+      const config = loadWhitelist()
+
+      expect(config.enabled).toBe(true)
+      expect(isUrlAllowed("https://login.example.com/", config)).toBe(true)
+      expect(isUrlAllowed("https://example.org/", config)).toBe(false)
+    })
+
+    it("reports no broad entries when the whitelist file is missing", () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      expect(loadWhitelist().broadEntries).toEqual([])
+    })
+  })
+
   describe("wildcardSuffix", () => {
     it("returns the suffix of a valid wildcard entry", () => {
       expect(wildcardSuffix("*.chatgpt.site")).toBe("chatgpt.site")
@@ -286,6 +330,7 @@ describe("whitelist", () => {
     const baseConfig = {
       configPath: "/test/path",
       invalidEntries: [],
+      broadEntries: [],
       usingLegacyPath: false,
       preferredLocation: "~/.config/oauth2-forwarder/"
     }

@@ -233,6 +233,7 @@ An entry of the form `*.example.com` matches any subdomain of `example.com`, at 
 
 - A wildcard matches only on a whole label boundary, so `*.chatgpt.site` does **not** match `notchatgpt.site`
 - A wildcard does **not** match the bare domain itself. To allow `chatgpt.site` too, list it as a separate entry
+- A wildcard on a single label, such as `*.com`, is allowed but matches every hostname under that top-level domain. The server logs a warning about such entries at startup
 - `*` is only allowed as the whole first label. Entries such as `*chatgpt.site` or `login.*.example.com` are invalid: they never match, and the server logs a warning about them at startup
 
 ### Example

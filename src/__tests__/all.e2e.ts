@@ -25,6 +25,7 @@ const DISABLED_WHITELIST: WhitelistConfig = {
   enabled: false,
   domains: new Set(),
   invalidEntries: [],
+  broadEntries: [],
   configPath: "",
   usingLegacyPath: false,
   preferredLocation: ""
@@ -434,6 +435,7 @@ describe("URL whitelist", () => {
     enabled: true,
     domains: new Set([WHITELISTED_DOMAIN]),
     invalidEntries: [],
+    broadEntries: [],
     configPath: "",
     usingLegacyPath: false,
     preferredLocation: ""
@@ -549,6 +551,7 @@ describe("URL whitelist", () => {
       enabled: true,
       domains: new Set(["*.chatgpt.site"]),
       invalidEntries: [],
+      broadEntries: [],
       configPath: "",
       usingLegacyPath: false,
       preferredLocation: ""

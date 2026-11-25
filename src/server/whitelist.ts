@@ -24,6 +24,12 @@ export type WhitelistConfig = {
    * Empty when every entry is valid.
    */
   invalidEntries: string[]
+  /**
+   * Valid wildcard entries whose suffix is a single label, such as `*.com`.
+   * They are allowed but match a very wide range of hostnames, so the server
+   * warns about them. Empty when there are none.
+   */
+  broadEntries: string[]
   configPath: string
   /** True if using deprecated ~/.oauth2-forwarder/ location */
   usingLegacyPath: boolean
@@ -48,6 +54,7 @@ export function loadWhitelist(): WhitelistConfig {
       enabled: false,
       domains: new Set(),
       invalidEntries: [],
+      broadEntries: [],
       configPath,
       usingLegacyPath: false,
       preferredLocation,
@@ -64,6 +71,7 @@ export function loadWhitelist(): WhitelistConfig {
         enabled: false,
         domains: new Set(),
         invalidEntries: [],
+        broadEntries: [],
         configPath,
         usingLegacyPath: isLegacy,
         preferredLocation,
@@ -82,6 +90,10 @@ export function loadWhitelist(): WhitelistConfig {
       invalidEntries: Array.from(normalizedDomains).filter(
         d => d.includes("*") && wildcardSuffix(d) === null
       ),
+      broadEntries: Array.from(normalizedDomains).filter(d => {
+        const suffix = wildcardSuffix(d)
+        return suffix !== null && !suffix.includes(".")
+      }),
       configPath,
       usingLegacyPath: isLegacy,
       preferredLocation,
@@ -92,6 +104,7 @@ export function loadWhitelist(): WhitelistConfig {
       enabled: false,
       domains: new Set(),
       invalidEntries: [],
+      broadEntries: [],
       configPath,
       usingLegacyPath: isLegacy,
       preferredLocation,

@@ -18,6 +18,7 @@ const DISABLED_WHITELIST: WhitelistConfig = {
   enabled: false,
   domains: new Set(),
   invalidEntries: [],
+  broadEntries: [],
   configPath: "",
   usingLegacyPath: false,
   preferredLocation: ""
