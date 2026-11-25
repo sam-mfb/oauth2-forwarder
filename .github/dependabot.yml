@@ -17,6 +17,12 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      # typescript-eslint 8 requires typescript <6.1.0, so TypeScript major
+      # updates cannot install. Remove this once typescript-eslint supports
+      # the next TypeScript major version.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
