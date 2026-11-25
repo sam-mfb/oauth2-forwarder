@@ -24,6 +24,7 @@ import { RedirectResult } from "../redirect-types"
 const DISABLED_WHITELIST: WhitelistConfig = {
   enabled: false,
   domains: new Set(),
+  invalidEntries: [],
   configPath: "",
   usingLegacyPath: false,
   preferredLocation: ""
@@ -432,6 +433,7 @@ describe("URL whitelist", () => {
   const ENABLED_WHITELIST: WhitelistConfig = {
     enabled: true,
     domains: new Set([WHITELISTED_DOMAIN]),
+    invalidEntries: [],
     configPath: "",
     usingLegacyPath: false,
     preferredLocation: ""
@@ -540,6 +542,116 @@ describe("URL whitelist", () => {
     expect(response.statusCode).toEqual(403)
     expect(response.statusMessage).toContain(NON_WHITELISTED_DOMAIN)
     expect(openedUrl).toBeNull()
+  })
+
+  describe("wildcard entries", () => {
+    const WILDCARD_WHITELIST: WhitelistConfig = {
+      enabled: true,
+      domains: new Set(["*.chatgpt.site"]),
+      invalidEntries: [],
+      configPath: "",
+      usingLegacyPath: false,
+      preferredLocation: ""
+    }
+
+    const oauthUrl = (host: string, redirectPort: number): string =>
+      `https://${host}/oauth?client_id=xxx&redirect_uri=${encodeURIComponent(`http://localhost:${redirectPort}`)}&response_type=code&scope=openid&code_challenge=${TEST_CODE_CHALLENGE}&code_challenge_method=S256`
+
+    it("allows OAuth2 URLs on a subdomain matched by a wildcard", async () => {
+      const serverPort = getNextPort()
+      const redirectPort = getNextPort()
+
+      const harness = createTestHarness({
+        port: serverPort,
+        callbackParams: { code: TEST_CODE },
+        whitelist: WILDCARD_WHITELIST
+      })
+
+      const { close } = await harness.server()
+      await harness.client(
+        oauthUrl("demo.workspace.chatgpt.site", redirectPort)
+      )
+      close()
+
+      expect(harness.didFail()).toBe(false)
+      expect(harness.getRedirectUrl()).toContain(`code=${TEST_CODE}`)
+    })
+
+    it("rejects OAuth2 URLs on a lookalike domain", async () => {
+      const serverPort = getNextPort()
+      const redirectPort = getNextPort()
+
+      const harness = createTestHarness({
+        port: serverPort,
+        whitelist: WILDCARD_WHITELIST,
+        interactiveLogin: async () => {
+          throw new Error(
+            "Should not call interactiveLogin for rejected domain"
+          )
+        }
+      })
+
+      const { close } = await harness.server()
+      const response = await sendRawRequest(
+        serverPort,
+        JSON.stringify({ url: oauthUrl("notchatgpt.site", redirectPort) })
+      )
+      close()
+
+      expect(response.statusCode).toEqual(403)
+      expect(response.statusMessage).toContain("notchatgpt.site")
+    })
+
+    it("allows passthrough URLs on a subdomain matched by a wildcard", async () => {
+      const port = getNextPort()
+      let openedUrl: string | null = null
+      const passthroughUrl = "https://demo.chatgpt.site/some-path"
+
+      const harness = createTestHarness({
+        port,
+        passthrough: true,
+        whitelist: WILDCARD_WHITELIST,
+        openBrowser: async url => {
+          openedUrl = url
+        },
+        interactiveLogin: async () => {
+          throw new Error("Should not call")
+        }
+      })
+
+      const { close } = await harness.server()
+      await harness.client(passthroughUrl)
+      close()
+
+      expect(openedUrl).toEqual(passthroughUrl)
+    })
+
+    it("rejects passthrough URLs on the bare wildcard suffix", async () => {
+      const port = getNextPort()
+      let openedUrl: string | null = null
+
+      const harness = createTestHarness({
+        port,
+        passthrough: true,
+        whitelist: WILDCARD_WHITELIST,
+        openBrowser: async url => {
+          openedUrl = url
+        },
+        interactiveLogin: async () => {
+          throw new Error("Should not call")
+        }
+      })
+
+      const { close } = await harness.server()
+      const response = await sendRawRequest(
+        port,
+        JSON.stringify({ url: "https://chatgpt.site/some-path" })
+      )
+      close()
+
+      expect(response.statusCode).toEqual(403)
+      expect(openedUrl).toBeNull()
+    })
   })
 
   it("allows all URLs when whitelist is disabled", async () => {

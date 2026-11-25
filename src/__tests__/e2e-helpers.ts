@@ -17,6 +17,7 @@ export const LOCALHOST = "127.0.0.1"
 const DISABLED_WHITELIST: WhitelistConfig = {
   enabled: false,
   domains: new Set(),
+  invalidEntries: [],
   configPath: "",
   usingLegacyPath: false,
   preferredLocation: ""
