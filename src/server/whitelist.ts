@@ -12,7 +12,24 @@ export type WhitelistDisabledReason =
 
 export type WhitelistConfig = {
   enabled: boolean
+  /**
+   * Normalized (lowercase, trimmed) entries. Each is either an exact hostname
+   * or a wildcard of the form `*.suffix`, which matches any hostname ending in
+   * `.suffix` (one or more labels deep) but not `suffix` itself.
+   */
   domains: Set<string>
+  /**
+   * Entries that contain `*` but are not of the form `*.suffix`. They stay in
+   * `domains`, where they never match, so a typo cannot turn the whitelist off.
+   * Empty when every entry is valid.
+   */
+  invalidEntries: string[]
+  /**
+   * Valid wildcard entries whose suffix is a single label, such as `*.com`.
+   * They are allowed but match a very wide range of hostnames, so the server
+   * warns about them. Empty when there are none.
+   */
+  broadEntries: string[]
   configPath: string
   /** True if using deprecated ~/.oauth2-forwarder/ location */
   usingLegacyPath: boolean
@@ -36,6 +53,8 @@ export function loadWhitelist(): WhitelistConfig {
     return {
       enabled: false,
       domains: new Set(),
+      invalidEntries: [],
+      broadEntries: [],
       configPath,
       usingLegacyPath: false,
       preferredLocation,
@@ -51,6 +70,8 @@ export function loadWhitelist(): WhitelistConfig {
       return {
         enabled: false,
         domains: new Set(),
+        invalidEntries: [],
+        broadEntries: [],
         configPath,
         usingLegacyPath: isLegacy,
         preferredLocation,
@@ -66,6 +87,13 @@ export function loadWhitelist(): WhitelistConfig {
     return {
       enabled: normalizedDomains.size > 0,
       domains: normalizedDomains,
+      invalidEntries: Array.from(normalizedDomains).filter(
+        d => d.includes("*") && wildcardSuffix(d) === null
+      ),
+      broadEntries: Array.from(normalizedDomains).filter(d => {
+        const suffix = wildcardSuffix(d)
+        return suffix !== null && !suffix.includes(".")
+      }),
       configPath,
       usingLegacyPath: isLegacy,
       preferredLocation,
@@ -75,6 +103,8 @@ export function loadWhitelist(): WhitelistConfig {
     return {
       enabled: false,
       domains: new Set(),
+      invalidEntries: [],
+      broadEntries: [],
       configPath,
       usingLegacyPath: isLegacy,
       preferredLocation,
@@ -94,5 +124,36 @@ export function isUrlAllowed(url: string, config: WhitelistConfig): boolean {
     // If URL is invalid, reject it
     return false
   }
-  return config.domains.has(hostname)
+  // A hostname containing `*` is never allowed, so it cannot match a
+  // wildcard or malformed entry literally.
+  if (hostname.includes("*")) {
+    return false
+  }
+  if (config.domains.has(hostname)) {
+    return true
+  }
+  for (const entry of config.domains) {
+    const suffix = wildcardSuffix(entry)
+    if (suffix !== null && hostname.endsWith(`.${suffix}`)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Returns the suffix of a wildcard entry such as `*.example.com` (here
+ * `example.com`), or null if the entry is not a valid wildcard. A valid
+ * wildcard is `*.` followed by one or more non-empty labels with no further `*`.
+ */
+export function wildcardSuffix(entry: string): string | null {
+  if (!entry.startsWith("*.")) {
+    return null
+  }
+  const suffix = entry.slice(2)
+  const labels = suffix.split(".")
+  if (labels.some(label => label.length === 0 || label.includes("*"))) {
+    return null
+  }
+  return suffix
 }

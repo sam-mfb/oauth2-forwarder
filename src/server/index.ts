@@ -104,6 +104,16 @@ const interactiveLogin = buildInteractiveLogin({
     logger.info(
       `URL whitelist enabled with ${whitelist.domains.size} domain(s): ${Array.from(whitelist.domains).join(", ")}`
     )
+    if (whitelist.invalidEntries.length > 0) {
+      logger.warn(
+        `URL whitelist has invalid wildcard entries that will never match (use the form *.example.com): ${whitelist.invalidEntries.join(", ")}`
+      )
+    }
+    if (whitelist.broadEntries.length > 0) {
+      logger.warn(
+        `URL whitelist has very broad wildcard entries that match every hostname under a top-level domain: ${whitelist.broadEntries.join(", ")}`
+      )
+    }
     // Warn if using deprecated legacy config location
     if (whitelist.usingLegacyPath) {
       logger.warn(
